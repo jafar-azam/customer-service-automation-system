@@ -396,3 +396,14 @@ Carried into the root README and kept current, not hidden:
 - [x] Steps 02–37 planned with a definition of done
 - [x] Required user actions listed (§6); limitations opened (§7)
 - [ ] **Your approval, and answers to the four questions**
+
+---
+
+## 9. Decisions recorded (answered 2026-10-22)
+
+| Question | Answer | What it changes |
+| :-- | :-- | :-- |
+| Code licence | **Apache-2.0** | `LICENSE` at step 02; `NOTICE` file; third-party licence report at step 37 must flag any copyleft dependency. Project-owned data is licensed separately under **CC BY 4.0** so ShareAlike datasets can never contaminate the code licence. |
+| `seniordata.csv` origin | **Real data from a business** | Decisive: **no copy is ever committed, and it never enters a training split.** It is local-only input read from the git-ignored `reference/` folder, so the column mapping you designed is still demonstrated end to end. The committed seed is the project-owned synthetic KB. `datasets.md` is explicit that real tickets need auditable rights to publish anonymized derivatives, and `privacy-law.md` is explicit that an "educational" label does not create that right — step 05's importer therefore writes `SourceLicense: proprietary-local`, `Publishable: false` on every imported row, and step 37's personal-data check fails the release if any row carrying that flag reached a committed file. |
+| Demo admin 2FA | **`DEMO_MODE` with a fixed, documented TOTP secret** | Dev-inbox page shows the live 6-digit code; mandatory-admin-2FA stays enforced and tested; a test asserts the flag is refused when `NODE_ENV=production`. |
+| Job queue | **BullMQ + Redis** | Redis container added to Compose at step 02 and to the architecture diagram; it also backs the atomic OTP/rate-limit counters in step 08. |
