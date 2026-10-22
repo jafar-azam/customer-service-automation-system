@@ -1,0 +1,42 @@
+# Windows download markers
+*:Zone.Identifier
+
+# Node
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+coverage/
+.vite/
+playwright-report/
+test-results/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+
+# Data, models and reference material that must not be committed
+# (downloaded by script or supplied locally — see docs/steps/01-planning)
+reference/
+data/raw/
+data/external/
+models/
+*.safetensors
+*.onnx
+*.gguf
+*.bin
+mlruns/
+
+# Local runtime state
+storage/
+logs/
+*.log
