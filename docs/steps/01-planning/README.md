@@ -407,3 +407,101 @@ Carried into the root README and kept current, not hidden:
 | `seniordata.csv` origin | **Real data from a business** | Decisive: **no copy is ever committed, and it never enters a training split.** It is local-only input read from the git-ignored `reference/` folder, so the column mapping you designed is still demonstrated end to end. The committed seed is the project-owned synthetic KB. `datasets.md` is explicit that real tickets need auditable rights to publish anonymized derivatives, and `privacy-law.md` is explicit that an "educational" label does not create that right — step 05's importer therefore writes `SourceLicense: proprietary-local`, `Publishable: false` on every imported row, and step 37's personal-data check fails the release if any row carrying that flag reached a committed file. |
 | Demo admin 2FA | **`DEMO_MODE` with a fixed, documented TOTP secret** | Dev-inbox page shows the live 6-digit code; mandatory-admin-2FA stays enforced and tested; a test asserts the flag is refused when `NODE_ENV=production`. |
 | Job queue | **BullMQ + Redis** | Redis container added to Compose at step 02 and to the architecture diagram; it also backs the atomic OTP/rate-limit counters in step 08. |
+
+---
+
+## 10. Seed data resolved: TechQA, supplied locally (2026-10-22)
+
+12 GB of TechQA was dropped into the repository root. First action was to get it out of harm's way:
+it now lives at **`data/external/techqa/`**, which `.gitignore` excludes, because at the repo root a
+single `git add -A` would have committed it. Nothing was deleted, and a second copy remains in
+Windows `Downloads` (plus the 833 MB `.tar.gz`) — those can go once you are happy this one works.
+
+### 10.1 Licence — a correction to the research
+
+`datasets.md` records TechQA as **Apache-2.0**, cited from the GitHub repository's `LICENSE.md`.
+That is the licence on the *code*. The data ships under **Community Data License Agreement –
+Permissive, Version 1.0** (`CDLA-Permissive-v1.0.pdf` in the archive, confirmed by `README.txt`,
+and the technote corpus is released separately under the same licence).
+
+This is still good news and does not change the plan's direction: CDLA-Permissive-1.0 permits use,
+modification and redistribution of the data **and of derived data**, with no ShareAlike obligation
+on results such as trained models — provided the licence text and disclaimers travel with any data
+you redistribute. So a curated derived KB subset **can** be committed, with the licence file,
+attribution and per-record provenance. The 12 GB original stays out of git and is fetched by script.
+`docs/ml/LICENSES.md` (step 05) records CDLA-Permissive-1.0, not Apache-2.0, and the step 37
+third-party report inherits the corrected value.
+
+One caveat `datasets.md` raised that still stands: these are real IBM support technotes and
+anonymization was never verified upstream. Usernames, hostnames, paths and environment details do
+appear in question bodies. The PII/secret pass in step 19 therefore runs over the committed subset
+as a gate, not as a formality.
+
+### 10.2 What is actually in the archive (measured, not from the README)
+
+| | Instances | Answerable | Unanswerable |
+| :-- | --: | --: | --: |
+| `training_Q_A.json` | 600 | 450 | 150 |
+| `dev_Q_A.json` | 310 | 160 | 150 |
+| `validation_reference.json` | 20 | 11 | 9 |
+
+- Each question carries **50 candidate technotes** in `DOC_IDS` — a realistic retrieval task, and a
+  pool of **human-selected hard negatives**.
+- Answerable instances give `DOCUMENT` + `START_OFFSET`/`END_OFFSET` + the extracted `ANSWER`
+  (median 259 chars) — character-level grounding, not just a document label.
+- 28,482 technotes in the train/dev subset; median body 3,060 chars, p90 6,577, max 178,280 →
+  chunking is required. Metadata gives `productName` (1,129 distinct), `productId`, `date`,
+  `canonicalUrl`. Top products are WebSphere Application Server, WebSphere MQ, DB2, WebSphere
+  Portal, Netcool/OMNIbus, SPSS — enterprise software under support contracts, which is this
+  product's exact domain.
+- The full corpus (801,998 technotes, 6.4 GB JSON) is not needed and will not be touched by the
+  pipeline.
+- **The README is slightly wrong:** it documents `QUESTION_BODY`, the files actually contain
+  `QUESTION_TEXT`. The importer reads the real field and the step 05 README notes the discrepancy.
+
+### 10.3 What this changes
+
+1. **The KB seed stops being synthetic.** Step 05 imports **621 real question→grounded-resolution
+   pairs** (450 + 160 + 11) with verifiable answer spans, instead of a synthetic KB. Grounding goes
+   from "trust the generator" to "compare the cited span against the gold span" — the citation check
+   in step 15 and the grounding metric in step 21 become *measurable* rather than asserted.
+2. **The escalation benchmark becomes real and in-domain.** 309 genuinely unanswerable support
+   questions, annotated by humans as unanswerable from the candidate documents. `datasets.md`
+   recommended CLINC150's generic out-of-scope set as the fallback; this is strictly better, because
+   these are real technical questions that happen to have no answer in the KB — exactly the case
+   where a false answer is most dangerous. CLINC150 drops to a secondary comparison.
+3. **Hard negatives come free, and they are real.** Step 25's contrastive embedding fine-tune needs
+   hard negatives; the 49 non-answer candidates per question are human-curated near-misses. No
+   mining heuristic to defend.
+4. **Honest scale, stated up front.** `datasets.md` proposes 3,000 approved problem–resolution
+   records for a "credible demo", but that target assumed *synthetic* generation from project-owned
+   procedures. Using real grounded data instead trades volume for verifiability: ~620 solutions,
+   ~2,500 generated query variants across the four Arabic/Arabizi/code-switch/MSA modes (step 19),
+   309 real escalation cases, and the 200-item human test set (step 21). The README will report
+   those numbers plainly rather than padding the KB with synthetic entries to reach 3,000.
+5. **The five input forms still work the same way.** TechQA is English. The MSA translation of each
+   resolution and the four query-variant modes are unchanged from §4.2 — TechQA supplies the
+   *solutions* and the English stratum; step 19 supplies Lebanese Arabic, Arabizi, code-switching
+   and MSA queries against them; step 20 gates them on native review.
+6. **`seniordata.csv` stays as planned** — local-only, never committed, never in a training split
+   (§9). TechQA replaces it as the publishable seed, which resolves the §1.3 problem entirely.
+
+### 10.4 Training runs on this laptop — confirmed
+
+Phase 7 trains on the RTX 3070 (8 GB). Colab/Kaggle notebooks are still delivered because a
+reviewer without a GPU must be able to reproduce the results, but they become the alternative path,
+not the primary one. Budgets to verify at step 22:
+
+| Model | Approach | VRAM | Rough time |
+| :-- | :-- | --: | :-- |
+| Intent/topic classifier (23) | fine-tune an Arabic-capable encoder (110–280 M params) | 3–5 GB | minutes |
+| Escalation classifier (24) | gradient boosting / logistic regression over retrieval + text features, then probability calibration | CPU | seconds |
+| Embedding fine-tune (25) | contrastive, `multilingual-e5-base` (278 M), in-batch + TechQA hard negatives, gradient checkpointing | 6–7 GB | tens of minutes |
+| Voice evaluation (28) | `faster-whisper large-v3` int8 | ~4.5 GB | realtime-ish |
+| Lebanese variant generation (19) | Jais-2-8B-Chat Q4 via Ollama, one-time offline | ~5.5 GB | hours, batched |
+
+`e5-large` (560 M) is kept as a *frozen* retrieval baseline rather than a fine-tune target —
+contrastive learning wants large batches, and 8 GB would force batches small enough to hurt the
+result more than the extra capacity helps. That is a measurement to report, not an assumption, so
+step 25 records both. Step 22 first verifies CUDA actually reaches PyTorch through WSL
+(`/usr/lib/wsl/lib`), since that is the usual failure point.

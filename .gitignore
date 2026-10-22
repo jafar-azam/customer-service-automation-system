@@ -40,3 +40,7 @@ mlruns/
 storage/
 logs/
 *.log
+
+# Local-only external datasets (12 GB TechQA lives here)
+TechQA/
+data/external/
