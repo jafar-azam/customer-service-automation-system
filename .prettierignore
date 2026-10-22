@@ -1,0 +1,9 @@
+dist/
+coverage/
+node_modules/
+docs/research/
+data/
+reference/
+LICENSE
+NOTICE
+*.md

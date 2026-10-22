@@ -1,0 +1,24 @@
+# Keep build contexts small and secrets out of images.
+**/node_modules
+**/dist
+**/dist-types
+**/dist-types-node
+**/coverage
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+.git
+.github
+.husky
+data
+reference
+docs
+*.md
+.env
+.env.*
+!.env.example
+infra/mongo/keyfile
+playwright-report
+test-results

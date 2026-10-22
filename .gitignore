@@ -44,3 +44,10 @@ logs/
 # Local-only external datasets (12 GB TechQA lives here)
 TechQA/
 data/external/
+
+# Build outputs from tsc project references
+dist-types/
+dist-types-node/
+
+# Generated locally by `npm run setup`
+infra/mongo/keyfile

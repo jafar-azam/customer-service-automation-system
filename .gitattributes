@@ -1,1 +1,17 @@
+# Normalise line endings in the repository; check out LF everywhere.
+# Keeps Windows and WSL contributors from fighting over diffs.
 * text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.avif binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.wav binary
+*.mp3 binary
+*.gguf binary
+*.safetensors binary
+*.onnx binary

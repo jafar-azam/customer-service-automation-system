@@ -1,0 +1,26 @@
+{
+  "name": "@csas/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "description": "C.S.A.S API server.",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "node --watch --env-file-if-exists=../../.env --import tsx src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@csas/shared": "*",
+    "express": "^5.3.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/supertest": "^7.2.1",
+    "supertest": "^7.3.1",
+    "tsx": "^4.23.15"
+  }
+}

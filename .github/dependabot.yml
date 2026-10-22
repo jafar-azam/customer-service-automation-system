@@ -1,0 +1,36 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # One PR for the lint/test toolchain instead of ten.
+      dev-tooling:
+        patterns: ['eslint*', '@eslint/*', 'typescript-eslint', 'prettier*', 'vitest', '@vitest/*']
+        update-types: ['minor', 'patch']
+
+  - package-ecosystem: uv
+    directory: /apps/ml
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+
+  - package-ecosystem: docker
+    directory: /apps/server
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /apps/ml
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /apps/client
+    schedule:
+      interval: weekly

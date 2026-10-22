@@ -1,0 +1,25 @@
+C.S.A.S — Customer Service Automation System
+Copyright 2026 The C.S.A.S Authors
+
+This product includes software developed as an open-source portfolio project.
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+--------------------------------------------------------------------------------
+Third-party data
+--------------------------------------------------------------------------------
+
+Portions of the knowledge base and evaluation sets in this repository are derived
+from the TechQA dataset (IBM), which is released under the Community Data License
+Agreement - Permissive - Version 1.0 (CDLA-Permissive-1.0).
+
+  Source:  https://github.com/IBM/techqa
+  Licence: see docs/ml/licenses/CDLA-Permissive-1.0.txt
+
+Derived data redistributed in this repository carries that licence and its
+disclaimers. Per-record provenance (source dataset, source record id, source
+licence) is stored on every imported record; the full licence manifest is in
+docs/ml/LICENSES.md.
+
+Project-owned data created for this repository (synthetic knowledge-base entries,
+generated query variants, the human-written evaluation set) is licensed under
+Creative Commons Attribution 4.0 International (CC BY 4.0), not Apache-2.0.

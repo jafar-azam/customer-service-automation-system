@@ -1,0 +1,245 @@
+# C.S.A.S local stack — `npm run up` brings all of this online.
+#
+# Two things to know before reading:
+#
+#  * Everything runs on one laptop and costs nothing. Every external provider is
+#    a mock by default; the heavy optional containers (ClamAV, Ollama) sit behind
+#    Compose profiles so the default stack stays inside ~2.5 GB of RAM.
+#  * Only nginx is published on a routable port. MongoDB and the ML service are
+#    published on 127.0.0.1 only, so MongoDB Compass and the API docs are usable
+#    while nothing is reachable from the network.
+
+name: csas
+
+x-restart: &restart
+  restart: unless-stopped
+
+services:
+  # ── MongoDB ─────────────────────────────────────────────────────────────────
+  # A one-shot container generates the replica-set keyfile into a volume with the
+  # ownership and 0400 permissions mongod insists on. Doing it here rather than
+  # with a bind mount avoids the usual Windows/WSL file-ownership fight.
+  mongo-keyfile:
+    image: mongo:8
+    user: root
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        if [ ! -s /keyfile/mongo-keyfile ]; then
+          openssl rand -base64 756 > /keyfile/mongo-keyfile
+          echo "generated replica-set keyfile"
+        else
+          echo "keyfile already present"
+        fi
+        chmod 400 /keyfile/mongo-keyfile
+        chown 999:999 /keyfile/mongo-keyfile
+    volumes:
+      - mongo-keyfile:/keyfile
+
+  mongo:
+    image: mongo:8
+    <<: *restart
+    depends_on:
+      mongo-keyfile:
+        condition: service_completed_successfully
+    # --auth plus a replica set requires internal authentication, hence the
+    # keyfile. The replica set itself is needed for transactions and change
+    # streams (see infra/mongo/init-replica-set.js).
+    command:
+      - mongod
+      - --replSet
+      - rs0
+      - --auth
+      - --keyFile
+      - /etc/mongo/keyfile/mongo-keyfile
+      - --bind_ip_all
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USERNAME:?set MONGODB_ROOT_USERNAME in .env}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD:?set MONGODB_ROOT_PASSWORD in .env}
+    ports:
+      # Localhost only: enough for MongoDB Compass, invisible to the network.
+      - '127.0.0.1:27017:27017'
+    volumes:
+      - mongo-data:/data/db
+      - mongo-keyfile:/etc/mongo/keyfile:ro
+    healthcheck:
+      test: ['CMD', 'mongosh', '--quiet', '--eval', "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  # Initialises the replica set and creates the least-privilege application
+  # user. Idempotent, so it is safe on every `up`.
+  mongo-init:
+    image: mongo:8
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      MONGODB_APP_USERNAME: ${MONGODB_APP_USERNAME:?set MONGODB_APP_USERNAME in .env}
+      MONGODB_APP_PASSWORD: ${MONGODB_APP_PASSWORD:?set MONGODB_APP_PASSWORD in .env}
+      MONGODB_DB: ${MONGODB_DB:-csas}
+    volumes:
+      - ./infra/mongo:/scripts:ro
+    command:
+      - sh
+      - -c
+      - >
+        mongosh --host mongo:27017
+        -u "$$MONGODB_ROOT_USERNAME" -p "$$MONGODB_ROOT_PASSWORD"
+        --authenticationDatabase admin
+        /scripts/init-replica-set.js
+    env_file:
+      - path: .env
+        required: true
+
+  # ── Redis (BullMQ jobs, rate-limit counters, caches) ────────────────────────
+  redis:
+    image: redis:8-alpine
+    <<: *restart
+    # appendonly: a restart must not lose scheduled SLA timers and reminders.
+    # requirepass: Redis holds sessions and rate-limit state, so reaching the
+    # network should not be enough to read or reset them.
+    command:
+      - redis-server
+      - --appendonly
+      - 'yes'
+      - --requirepass
+      - ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli -a "$$REDIS_PASSWORD" ping | grep -q PONG']
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+
+  # ── ML service ──────────────────────────────────────────────────────────────
+  ml:
+    build:
+      context: .
+      dockerfile: apps/ml/Dockerfile
+      target: runtime
+    <<: *restart
+    env_file:
+      - path: .env
+        required: true
+    ports:
+      # Localhost only. Service-to-service authentication is still required.
+      - '127.0.0.1:8000:8000'
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=2).status==200 else 1)
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ── API server ──────────────────────────────────────────────────────────────
+  server:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+      target: runtime
+    <<: *restart
+    depends_on:
+      mongo-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      ml:
+        condition: service_started
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      # Inside the network the hostnames are service names, whatever .env says
+      # for native development.
+      MONGODB_URI: mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongo:27017/${MONGODB_DB:-csas}?replicaSet=rs0&authSource=${MONGODB_DB:-csas}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      ML_SERVICE_URL: http://ml:8000
+      CLAMAV_HOST: clamav
+    volumes:
+      # Attachments live outside the web root on a private volume; step 12 adds
+      # signed URLs and retention on top.
+      - server-storage:/var/lib/csas/storage
+    expose:
+      - '4000'
+
+  # ── Web client (Vite dev server, hot reload) ────────────────────────────────
+  client:
+    build:
+      context: .
+      dockerfile: apps/client/Dockerfile
+      target: dev
+    <<: *restart
+    volumes:
+      # Source is mounted so edits are live. node_modules stays in the image —
+      # the anonymous volume shadows the host's, which may not even exist.
+      - ./apps/client/src:/app/apps/client/src:ro
+      - ./apps/client/index.html:/app/apps/client/index.html:ro
+      - client-node-modules:/app/node_modules
+    expose:
+      - '5173'
+
+  # ── Reverse proxy: the only published port ──────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    <<: *restart
+    depends_on:
+      - server
+      - client
+    ports:
+      - '${APP_PORT:-8080}:8080'
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q -O /dev/null http://127.0.0.1:8080/api/version || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── Optional: malware scanning for attachments (profile "scan") ─────────────
+  # ~1.5-2 GB of RAM and a ~300 MB signature download on first start, which is
+  # why it is opt-in. FILE_SCAN_PROVIDER=mock exercises the same interface.
+  clamav:
+    image: clamav/clamav:1.5
+    profiles: ['scan']
+    <<: *restart
+    volumes:
+      - clamav-db:/var/lib/clamav
+    healthcheck:
+      test: ['CMD-SHELL', 'clamdcheck.sh || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 180s
+
+  # ── Optional: local open-weight LLM (profile "llm") ─────────────────────────
+  # Needed only when LLM_PROVIDER=ollama. qwen3:4b is ~2.6 GB on disk and runs
+  # on CPU; an 8B model wants ~6 GB and is far happier on the GPU.
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ['llm']
+    <<: *restart
+    volumes:
+      - ollama-models:/root/.ollama
+    expose:
+      - '11434'
+
+volumes:
+  mongo-data:
+  mongo-keyfile:
+  redis-data:
+  server-storage:
+  client-node-modules:
+  clamav-db:
+  ollama-models:
