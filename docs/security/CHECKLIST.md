@@ -20,8 +20,8 @@ reports anything that does not hold.
 L2 · A0x = OWASP Top 10 2021 · API0x = OWASP API Security Top 10 2023 ·
 LLM0x = OWASP Top 10 for LLM Applications 2025.
 
-Counts as of the step 05 review, re-derived from the table by `npm run audit:checklist`
-rather than written by hand: **31 done, 69 planned, 1 accepted**. (The numbered
+Counts as of step 06, re-derived from the table by `npm run audit:checklist`
+rather than written by hand: **46 done, 54 planned, 1 accepted**. (The numbered
 rows count one `accepted`; the five further acceptances have no requirement id
 because they are infrastructure decisions, and are listed at the end.)
 
@@ -31,11 +31,11 @@ because they are infrastructure decisions, and are listed at the end.)
 
 | # | Requirement | Std | Control | Code | Test | Status |
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-| 1.1 | Passwords stored with a memory-hard hash | ASVS 2.4, A02 | Argon2id, tuned parameters recorded | `services/auth` | hash verification; parameters asserted | step 06 |
-| 1.2 | Password policy: length over composition | ASVS 2.1 | ≥12 chars, breached-password list, no composition rules | `services/auth` | policy unit tests | step 06 |
-| 1.3 | TOTP mandatory for admins, optional for agents | ASVS 2.8 | Enrolment at first admin login; refused without it | `services/auth` | admin without TOTP cannot reach an admin route | step 06 |
-| 1.4 | Lockout with backoff after failed attempts | ASVS 2.2, API04 | Exponential backoff per account and per IP | `services/auth` | nth attempt locked; lock expires | step 06 |
-| 1.5 | Login responses identical for unknown and known accounts | ASVS 2.2 | Same body, status and approximate timing | `services/auth` | response equality test | step 06 |
+| 1.1 | Passwords stored with a memory-hard hash | ASVS 2.4, A02 | Argon2id, 64 MiB, parameters inside the hash; rehash on login | `services/auth/password.ts` | "produces an Argon2id hash"; "reports the upgrade alongside a successful verification" | **done** |
+| 1.2 | Password policy: length over composition | ASVS 2.1 | ≥12 chars, zxcvbn ≥3, context words refused, no composition rules | `services/auth/password.ts` | 11 policy tests incl. "rejects Password1!" | **done** |
+| 1.3 | TOTP mandatory for admins, optional for agents | ASVS 2.8 | Required at login; secret encrypted at rest | `services/auth/totp.ts` | "is required for an admin who has enrolled"; "refuses an admin who has never enrolled" | **done** |
+| 1.4 | Lockout with backoff after failed attempts | ASVS 2.2 | Exponential backoff per account, shared by both factors | `services/auth/login.ts` | "locks the account after five failures"; "counts a wrong code towards the lockout" | **done** |
+| 1.5 | Login responses identical for unknown and known accounts | ASVS 2.2 | Same body and status; a dummy verification equalises the time | `services/auth/login.ts` | "answers identically for an unknown account and a wrong password" | **done** |
 | 1.6 | `DEMO_MODE` cannot be enabled in production | — | Environment validation refuses the combination | `packages/shared/src/env.ts` | "is refused outright in production" | **done** |
 
 ## 2. Authentication — customer OTP
@@ -57,18 +57,18 @@ because they are infrastructure decisions, and are listed at the end.)
 
 | # | Requirement | Std | Control | Code | Test | Status |
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-| 3.1 | Short-lived access token | ASVS 3.3 | In memory on the client, never `localStorage` | `services/tokens` | expiry honoured | step 06 |
-| 3.2 | Refresh token in `httpOnly`, `Secure`, `SameSite=Strict` cookie | ASVS 3.4 | Cookie flags set centrally | `http/cookies` | flags asserted on the response | step 06 |
-| 3.3 | Rotation on every use | ASVS 3.3 | New token each refresh; old one invalidated | `services/tokens` | reusing the old token fails | step 06 |
-| 3.4 | **Reuse detection revokes the whole family** | ASVS 3.3 | Family id; reuse kills every descendant | `services/tokens` | replay revokes the live session too | step 06 |
-| 3.5 | Server-side revocation on logout, password reset, deactivation | ASVS 3.3 | Session store consulted on every request | `services/sessions` | revoked token rejected | step 06 |
-| 3.6 | CSRF protection on cookie-authenticated state changes | ASVS 4.2, A01 | Double-submit token, `SameSite` as defence in depth | `http/csrf` | write without the token → 403 | step 06 |
+| 3.1 | Short-lived access token | ASVS 3.3 | 15-minute JWT, bearer header, never a cookie | `services/auth/tokens.ts` | "refuses an expired token" | **done** |
+| 3.2 | Refresh token in `httpOnly`, `Secure`, `SameSite=Strict` cookie | ASVS 3.4 | Flags set centrally, path-scoped | `http/cookies.ts` | "marks the refresh cookie HttpOnly, Secure and SameSite=Strict" | **done** |
+| 3.3 | Rotation on every use | ASVS 3.3 | New token each refresh, in a transaction | `services/auth/tokens.ts` | "rotates to a new token and retires the old one" | **done** |
+| 3.4 | **Reuse detection revokes the whole family** | ASVS 3.3 | Family id; a replay revokes every live token in it | `services/auth/tokens.ts` | "revokes every live token in the family"; verified live | **done** |
+| 3.5 | Server-side revocation on logout and deactivation | ASVS 3.3 | Session family checked on every authenticated request | `http/authenticate.ts` | "stops accepting the access token the moment the session is revoked" | **done** |
+| 3.6 | CSRF protection on cookie-authenticated state changes | ASVS 4.2, A01 | Double-submit token compared in constant time | `http/cookies.ts` | "refuses a refresh with no CSRF header"; "refuses a header that does not match" | **done** |
 
 ## 4. Authorization
 
 | # | Requirement | Std | Control | Code | Test | Status |
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-| 4.1 | Role-based access on every route | A01, API05 | Route-level role guard | `http/authorize` | agent on an admin route → 403 | step 06 |
+| 4.1 | Role-based access on every route | A01, API05 | `requireRole` after `requireStaff` | `http/authenticate.ts` | "refuses an agent on the same route"; 401 before 403 | **done** |
 | 4.2 | **Object-level checks on every resource** | API01 | Ownership enforced in the repository layer | `repositories/*` | cross-customer ticket read → 404 | step 11 |
 | 4.3 | Attachments and transcripts carry the same checks | API01 | Access check before any signed URL is issued | `services/attachments` | cross-customer attachment → denied | step 12 |
 | 4.4 | Socket rooms authorized at join | API01 | Handshake authenticated; room membership checked | `realtime/*` | joining another customer's room refused | step 11 |
@@ -78,8 +78,8 @@ because they are infrastructure decisions, and are listed at the end.)
 
 | # | Requirement | Std | Control | Code | Test | Status |
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-| 5.1 | zod validation on body, query, params and socket events | ASVS 5.1, A03 | Schemas in `packages/shared`, shared with the client | `http/validate` | unknown fields rejected | step 06 |
-| 5.2 | NoSQL operator injection prevented | A03 | Typed queries; no query or regex built from raw input | `repositories/*` | `{"$ne": null}` as a credential fails | step 06 |
+| 5.1 | zod validation on body, query and params | ASVS 5.1, A03 | `z.strictObject`; the parsed value replaces the raw one | `http/validate.ts` | "refuses an unknown field" | **done** |
+| 5.2 | NoSQL operator injection prevented | A03 | zod refuses an operator object before a query exists; `sanitizeFilter` per query on user-supplied filters | `http/validate.ts` | "refuses an operator object as a password" / "as an email" | **done** |
 | 5.3 | Request size limits | ASVS 12.1 | 100 KB JSON at the app, 12 MB at the proxy | `app.ts`, `nginx.conf` | "answers 413, not 500" | **done** |
 | 5.4 | Malformed JSON answered 400, not 500 | — | Body-parser errors translated | `http/errors.ts` | "answers 400 for malformed JSON" | **done** |
 | 5.5 | No `dangerouslySetInnerHTML`; rich text sanitized | A03 | Lint rule plus sanitizer | client | lint rule + render test | step 10 |
@@ -153,8 +153,8 @@ because they are infrastructure decisions, and are listed at the end.)
 | 11.2 | Free-form customer text never logged | — | Convention + scrubbing in error events | `observability/*` | scrub test includes an Arabic message | **done** |
 | 11.3 | Log injection through headers refused | ASVS 7.1 | `x-request-id` character and length rules | `http/observability-middleware.ts` | newline/length/punctuation cases, both services | **done** |
 | 11.4 | Internal errors leak nothing but a request id | ASVS 7.4, A09 | Bare 500 plus id | `http/errors.ts` | "leaking nothing" | **done** |
-| 11.5 | Append-only audit log for security-relevant events | ASVS 7.2 | Insert-only collection, no update path | `services/audit` | update attempt rejected | step 06 |
-| 11.6 | Audit covers logins, recovery, roles, KB, models, exports, deletions, contracts | ASVS 7.2 | Event taxonomy | `services/audit` | one test per event type | step 06–31 |
+| 11.5 | Append-only audit log for security-relevant events | ASVS 7.2 | One verb, `record`; no update or delete path exists | `services/audit.ts` | four audit tests; a write failure never fails the request | **done** |
+| 11.6 | Audit covers logins, recovery, roles, KB, models, exports, deletions, contracts | ASVS 7.2 | Closed action list; logins and lockouts recorded | `services/audit.ts` | login/lockout/reuse covered; the rest follow their steps | step 07–31 |
 | 11.7 | Phone numbers encrypted at rest with a hashed lookup index | — | AES-256-GCM + peppered HMAC; login never decrypts | `crypto/phone.ts` | 28 tests incl. "stores demo phone numbers encrypted and hashed, never in the clear" | **done** |
 | 11.8 | Retention periods enforced per category | — | Scheduled sweeps | `jobs/retention` | record deleted after its period | step 14 |
 | 11.9 | Admin-triggered export and deletion of a customer's data | — | Including removal from future training data | `services/privacy` | exported bundle complete; deleted record not exportable | step 29 |

@@ -43,9 +43,24 @@ export async function connectToDatabase({
      implicitly by the first write. Otherwise Mongoose races the validator
      setup and a collection ends up with no rules on it. */
   mongoose.set('autoCreate', false);
-  /* Mongoose strips `$`-prefixed keys from filter objects when this is on,
-     which is a second line of defence behind zod against operator injection. */
-  mongoose.set('sanitizeFilter', true);
+  /**
+   * `sanitizeFilter` is deliberately **not** enabled globally.
+   *
+   * It rewrites `$`-prefixed keys inside filter *values*, which is the right
+   * thing to do to a filter built from user input and the wrong thing to do to
+   * one the application wrote itself. Turned on globally it broke
+   * `{ expiresAt: { $gt: new Date() } }` with a cast error — and that was the
+   * lucky case. On a same-typed field, `{ status: { $ne: 'closed' } }` is
+   * rewritten to an equality test against a literal object and silently
+   * matches nothing: a revocation query that quietly revokes no sessions, with
+   * no error anywhere.
+   *
+   * So the sanitising happens where the danger is, per query, on filters that
+   * carry user input: `.setOptions({ sanitizeFilter: true })`. The primary
+   * defence is upstream of Mongoose anyway — zod rejects an operator object
+   * where a string belongs, before any query is built, and two tests prove it
+   * on the login endpoint.
+   */
 
   const connection = mongoose.connection;
 

@@ -1,3 +1,4 @@
+import cookieParser from 'cookie-parser';
 import express, { type Express } from 'express';
 import type { Logger } from 'pino';
 import type { Env } from '@csas/shared';
@@ -6,6 +7,7 @@ import { observabilityMiddleware } from './http/observability-middleware.js';
 import { DisabledErrorTracker, type ErrorTracker } from './observability/error-tracking.js';
 import { HealthRegistry } from './observability/health.js';
 import { createMetrics, type Metrics } from './observability/metrics.js';
+import { authRouter } from './routes/auth.js';
 import { healthRouter } from './routes/health.js';
 import { metricsRouter } from './routes/metrics.js';
 import { versionRouter } from './routes/version.js';
@@ -65,10 +67,15 @@ export function createApp({
      come through this parser; they get their own limits in step 12. */
   app.use(express.json({ limit: '100kb' }));
   app.use(express.urlencoded({ extended: false, limit: '100kb' }));
+  /* Unsigned: the refresh cookie's value is a 256-bit random token whose hash
+     is stored server-side, so a signature would add a second secret to manage
+     and prove nothing the lookup does not already prove. */
+  app.use(cookieParser());
 
   app.use(metricsRouter(metrics));
   app.use('/api', healthRouter({ registry: health, version, startedAt }));
   app.use('/api', versionRouter({ name: 'csas-server', version, environment: env.NODE_ENV }));
+  app.use('/api/auth', authRouter({ env, logger }));
 
   app.use(notFoundHandler);
   app.use(createErrorHandler({ logger, metrics, errorTracker }));

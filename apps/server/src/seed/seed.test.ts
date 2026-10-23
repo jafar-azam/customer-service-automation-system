@@ -5,8 +5,9 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { AuditLog, Contract, Customer, KbEntry, StaffUser } from '../db/models/index.js';
 import { clearTestDatabase, startTestDatabase, stopTestDatabase } from '../db/test-db.js';
 import { PhoneCipher } from '../crypto/phone.js';
+import { SecretCipher } from '../crypto/secret-cipher.js';
 import { silentLogger, testEnv } from '../test-support.js';
-import { seedAdmin, seedDemoData, DEMO_CUSTOMERS } from './seed.js';
+import { enrolDemoAdminTotp, seedAdmin, seedDemoData, DEMO_CUSTOMERS } from './seed.js';
 import { importTechQa, loadTechQaInstances } from './techqa.js';
 import { buildTags, buildTitle, importSeniordata, parseSeniordata } from './seniordata.js';
 
@@ -62,6 +63,36 @@ describe('seeding the first admin', () => {
     expect(await StaffUser.countDocuments({ role: 'admin' })).toBe(1);
   });
 
+  /* Mandatory admin 2FA and "a reviewer logs in within five minutes" fight.
+     DEMO_MODE resolves it by seeding the documented secret — the 2FA code path
+     itself is untouched. */
+  it('enrols the demo admin with the documented TOTP secret under DEMO_MODE', async () => {
+    await seedAdmin(context);
+    await enrolDemoAdminTotp(context);
+    const admin = await StaffUser.findOne({ role: 'admin' })
+      .select('+totpSecretEncrypted')
+      .lean<{ totpSecretEncrypted: string; totpEnrolledAt?: Date } | null>();
+
+    expect(admin?.totpEnrolledAt).toBeDefined();
+    const cipher = new SecretCipher(env.PHONE_ENCRYPTION_KEY);
+    expect(cipher.decrypt(String(admin?.totpSecretEncrypted))).toBe(env.DEMO_ADMIN_TOTP_SECRET);
+    /* Encrypted at rest, like every other secret. */
+    expect(JSON.stringify(admin)).not.toContain(String(env.DEMO_ADMIN_TOTP_SECRET));
+  });
+
+  it('does not enrol a TOTP secret when DEMO_MODE is off', async () => {
+    const live = { env: testEnv({ DEMO_MODE: 'false' }), logger };
+    await seedAdmin(live);
+    expect(await enrolDemoAdminTotp(live)).toBe(false);
+    const admin = await StaffUser.findOne({ role: 'admin' })
+      .select('+totpSecretEncrypted')
+      .lean<{ totpSecretEncrypted?: string; mustChangePassword: boolean } | null>();
+
+    expect(admin?.totpSecretEncrypted).toBeUndefined();
+    /* And the seeded password must be changed on first use. */
+    expect(admin?.mustChangePassword).toBe(true);
+  });
+
   it('leaves an existing admin alone even under a different email', async () => {
     await StaffUser.create({
       email: 'someone.else@example.com',
@@ -99,6 +130,23 @@ describe('demo data', () => {
     });
     expect(cipher.decrypt(customer?.phoneEncrypted ?? '')).toBe('+96170100001');
     expect(customer?.phoneHash).toBe(cipher.hash('+96170100001'));
+  });
+
+  /* An admin who has enrolled a real authenticator must never have it
+     replaced by the demo secret. */
+  it('leaves an admin who already has a second factor alone', async () => {
+    await seedAdmin(context);
+    await StaffUser.updateOne(
+      { role: 'admin' },
+      { $set: { totpSecretEncrypted: 'their-own-encrypted-secret', totpEnrolledAt: new Date() } },
+    );
+
+    expect(await enrolDemoAdminTotp(context)).toBe(false);
+
+    const admin = await StaffUser.findOne({ role: 'admin' })
+      .select('+totpSecretEncrypted')
+      .lean<{ totpSecretEncrypted: string } | null>();
+    expect(admin?.totpSecretEncrypted).toBe('their-own-encrypted-secret');
   });
 
   it('runs twice without duplicating anyone', async () => {

@@ -1,11 +1,6 @@
-import {
-  createCipheriv,
-  createDecipheriv,
-  createHmac,
-  randomBytes,
-  timingSafeEqual,
-} from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { normalizePhone } from '@csas/shared';
+import { SecretCipher } from './secret-cipher.js';
 
 /**
  * Phone numbers: encrypted at rest, but still searchable.
@@ -15,7 +10,7 @@ import { normalizePhone } from '@csas/shared';
  * it must not sit in plaintext in a dump). Those two requirements fight, and
  * the standard resolution is to store both forms:
  *
- *   phoneEncrypted — AES-256-GCM, reversible, what gets displayed
+ *   phoneEncrypted — AES-256-GCM (SecretCipher), reversible, what gets displayed
  *   phoneHash      — HMAC-SHA-256 with a pepper, deterministic, what gets indexed
  *
  * Login hashes the submitted number and looks up `phoneHash`; nothing is
@@ -32,68 +27,29 @@ import { normalizePhone } from '@csas/shared';
  * *and* the application's configuration.
  */
 
-const ALGORITHM = 'aes-256-gcm';
-const IV_BYTES = 12; // 96 bits, the size GCM is specified for
-const TAG_BYTES = 16;
-
 export interface PhoneCipherOptions {
   /** 32 bytes, base64. Validated at startup by the environment schema. */
   readonly encryptionKey: string;
-  /** ≥32 characters. Never stored with the data it protects. */
+  /** >=32 characters. Never stored with the data it protects. */
   readonly hashPepper: string;
 }
 
 export class PhoneCipher {
-  readonly #key: Buffer;
+  readonly #cipher: SecretCipher;
   readonly #pepper: string;
 
   constructor({ encryptionKey, hashPepper }: PhoneCipherOptions) {
-    const key = Buffer.from(encryptionKey, 'base64');
-    if (key.length !== 32) {
-      /* The message names the variable and the expected size, never the value.
-         This throws at startup, and startup errors end up in log files. */
-      throw new Error('PHONE_ENCRYPTION_KEY must decode to exactly 32 bytes (AES-256-GCM)');
-    }
-    this.#key = key;
+    this.#cipher = new SecretCipher(encryptionKey, 'PHONE_ENCRYPTION_KEY');
     this.#pepper = hashPepper;
   }
 
-  /**
-   * Returns `iv.ciphertext.tag`, all base64url.
-   *
-   * A fresh random IV per call means the same number encrypts differently every
-   * time — which is why the ciphertext cannot be used for lookup, and why the
-   * hash exists. The GCM tag makes the value tamper-evident: an attacker with
-   * write access to the database cannot swap one customer's number for another
-   * without the decrypt failing.
-   */
+  /** Reversible, for the rare moment a human must see the number. */
   encrypt(e164: string): string {
-    const iv = randomBytes(IV_BYTES);
-    const cipher = createCipheriv(ALGORITHM, this.#key, iv);
-    const ciphertext = Buffer.concat([cipher.update(e164, 'utf8'), cipher.final()]);
-    const tag = cipher.getAuthTag();
-    return [iv, ciphertext, tag].map((part) => part.toString('base64url')).join('.');
+    return this.#cipher.encrypt(e164);
   }
 
   decrypt(stored: string): string {
-    const parts = stored.split('.');
-    if (parts.length !== 3) throw new Error('Stored phone value is malformed');
-    const [ivPart, ciphertextPart, tagPart] = parts as [string, string, string];
-
-    const iv = Buffer.from(ivPart, 'base64url');
-    const tag = Buffer.from(tagPart, 'base64url');
-    if (iv.length !== IV_BYTES || tag.length !== TAG_BYTES) {
-      throw new Error('Stored phone value is malformed');
-    }
-
-    const decipher = createDecipheriv(ALGORITHM, this.#key, iv);
-    decipher.setAuthTag(tag);
-    /* `final()` throws if the tag does not verify — that is the integrity
-       check, and it must not be swallowed. */
-    return Buffer.concat([
-      decipher.update(Buffer.from(ciphertextPart, 'base64url')),
-      decipher.final(),
-    ]).toString('utf8');
+    return this.#cipher.decrypt(stored);
   }
 
   /**

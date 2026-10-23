@@ -1,10 +1,11 @@
-import { hash } from '@node-rs/argon2';
 import type { Logger } from 'pino';
 import type { Env } from '@csas/shared';
 import { normalizePhone } from '@csas/shared';
 import { maskEmail } from '../observability/logger.js';
 import { PhoneCipher } from '../crypto/phone.js';
+import { SecretCipher } from '../crypto/secret-cipher.js';
 import { AuditLog, Contract, Customer, StaffUser } from '../db/models/index.js';
+import { hashPassword } from '../services/auth/password.js';
 
 /**
  * Seeding, with one rule above all others: **it never deletes anything.**
@@ -15,25 +16,6 @@ import { AuditLog, Contract, Customer, StaffUser } from '../db/models/index.js';
  * it twice is the same as running it once, and running it on a database with
  * real data in it changes nothing that was not seeded.
  */
-
-/**
- * Argon2id parameters.
- *
- * OWASP's current guidance for Argon2id is 19 MiB of memory with 2 iterations
- * and parallelism 1, as one of several accepted configurations. Memory is the
- * parameter that matters against GPU attack, so it is raised to 64 MiB here:
- * at a handful of staff logins there is no throughput concern, and the cost of
- * a cracked staff password is the whole system.
- *
- * The parameters are stored inside the hash string, so a future change is
- * detectable and step 06 can re-hash on next successful login.
- */
-export const ARGON2_OPTIONS = {
-  algorithm: 2 as const /* Argon2id */,
-  memoryCost: 65_536,
-  timeCost: 3,
-  parallelism: 1,
-};
 
 export interface SeedContext {
   readonly env: Env;
@@ -75,9 +57,10 @@ export async function seedAdmin({ env, logger }: SeedContext): Promise<AdminSeed
     name: 'C.S.A.S Administrator',
     role: 'admin',
     status: 'active',
-    passwordHash: await hash(env.SEED_ADMIN_PASSWORD, ARGON2_OPTIONS),
-    /* In DEMO_MODE the TOTP secret is the fixed, documented one so a reviewer
-       can log in; otherwise the admin enrols at first login (step 06). */
+    passwordHash: await hashPassword(env.SEED_ADMIN_PASSWORD),
+    /* Outside DEMO_MODE the seeded password is a bootstrap credential, so the
+       first login must replace it. Two-factor enrolment is demo data, not part
+       of creating an admin — see `enrolDemoAdminTotp`. */
     mustChangePassword: !env.DEMO_MODE,
   });
 
@@ -149,6 +132,51 @@ function dateOffset(days: number): Date {
 export interface DemoSeedResult {
   readonly customers: number;
   readonly contracts: number;
+  readonly totpEnrolled: boolean;
+}
+
+/**
+ * Gives the demo admin the documented TOTP secret, if it has none.
+ *
+ * Mandatory admin two-factor and "a reviewer logs in within five minutes"
+ * genuinely conflict: a fresh clone has no authenticator seeded. `DEMO_MODE`
+ * resolves it by enrolling the secret from the environment, which the dev
+ * inbox then turns into a visible 6-digit code.
+ *
+ * This lives with the demo data rather than with admin creation for a reason.
+ * `seedAdmin` creates an admin **once and never touches it again**, which is
+ * what stops a re-seed from reverting a changed password. Enrolment is a
+ * separate, narrower act: it runs only under `DEMO_MODE`, only when no secret
+ * exists, and it never alters a password or a role. An admin who has enrolled
+ * a real authenticator is left alone.
+ *
+ * The 2FA code path itself is the production one. Only the secret's provenance
+ * is demo-only, and the environment validator refuses `DEMO_MODE` when
+ * `NODE_ENV=production`.
+ */
+export async function enrolDemoAdminTotp({ env, logger }: SeedContext): Promise<boolean> {
+  if (!env.DEMO_MODE || env.DEMO_ADMIN_TOTP_SECRET === undefined) return false;
+
+  const admin = await StaffUser.findOne({ role: 'admin' })
+    .select('+totpSecretEncrypted')
+    .lean<{ _id: unknown; totpSecretEncrypted?: string } | null>();
+
+  if (!admin || admin.totpSecretEncrypted !== undefined) return false;
+
+  await StaffUser.updateOne(
+    { _id: admin._id },
+    {
+      $set: {
+        totpSecretEncrypted: new SecretCipher(env.PHONE_ENCRYPTION_KEY).encrypt(
+          env.DEMO_ADMIN_TOTP_SECRET,
+        ),
+        totpEnrolledAt: new Date(),
+      },
+    },
+  );
+
+  logger.info('seed: demo admin enrolled with the documented two-factor secret');
+  return true;
 }
 
 export async function seedDemoData({ env, logger }: SeedContext): Promise<DemoSeedResult> {
@@ -209,6 +237,8 @@ export async function seedDemoData({ env, logger }: SeedContext): Promise<DemoSe
     contracts += 1;
   }
 
+  const totpEnrolled = await enrolDemoAdminTotp({ env, logger });
+
   logger.info({ customers, contracts }, 'seed: demo customers and contracts ready');
-  return { customers, contracts };
+  return { customers, contracts, totpEnrolled };
 }

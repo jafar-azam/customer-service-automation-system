@@ -30,7 +30,7 @@ export async function startTestDatabase(): Promise<string> {
   const uri = replSet.getUri();
 
   mongoose.set('bufferCommands', false);
-  mongoose.set('sanitizeFilter', true);
+  /* Matches the application exactly — see connection.ts for why this is off. */
   mongoose.set('autoCreate', false);
   await mongoose.connect(uri);
 
