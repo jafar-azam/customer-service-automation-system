@@ -181,8 +181,10 @@ Three reasons it is not approved, and the easy choice would have been to approve
 it:
 
 1. It has not been de-identified. The free text carries first names
-   ("Jadav called to check his porting out status"), gendered references and
-   churn detail tied to identifiable people.
+   — rows read like "&lt;first name&gt; called to check his porting out status",
+   with the real name in place — gendered references and churn detail tied to
+   identifiable people. Paraphrased here rather than quoted, for the same
+   reason the file is git-ignored.
 2. The domain is **Indian mobile telecom** — porting to Idea and BSNL, data
    plans — not the IT support this product is for. Approving it would teach the
    assistant to answer confidently about the wrong industry.
@@ -285,6 +287,73 @@ as `SchemaOptions` widened the literal types and made **every** document type in
 the project collapse, silently. The options object is deliberately unannotated,
 with a comment saying why.
 
+### 4.8 The documented `npm run seed` did not work
+
+Found by a review pass that ran the command as the README writes it, rather
+than the variant I had been typing by hand:
+
+```
+npm error command failed: node --env-file-if-exists=../../.env dist/seed/index.js
+```
+
+`MONGODB_MIGRATION_URI` names the host `mongo`, which exists only inside the
+Compose network. The documented path had never been exercised — every run so
+far had passed a `127.0.0.1:27018` URI on the command line.
+
+The fix is a one-shot `seed` service in Compose (profile `seed`) built from the
+server image: `npm run seed` is now `docker compose run --rm seed`. Three
+things fall out of that:
+
+* The command in the README is the command that runs.
+* The seed container is the **only** thing that holds the migration
+  credential. The server's environment sets `MONGODB_MIGRATION_URI` to an
+  empty string on purpose, and §6.2 shows `printenv` in the running container
+  returning nothing — so §3.2's separation is real rather than aspirational.
+  The environment validator had to learn that an empty value means *absent*,
+  or the server would refuse to boot over a variable it must not use.
+* `npm run up` now ends with the seed, which is what makes the README's
+  one-command promise true: 88 seconds from `down -v` to six healthy services
+  and a database with 618 knowledge entries in it.
+
+### 4.9 The seed overwrote decisions an admin had made
+
+The sharpest finding of the review, because nothing failed — it just quietly
+undid work.
+
+Both importers wrote `status` inside `$set`, so every run re-asserted it. An
+admin who archived a wrong TechQA entry would find it **back and approved**
+after the next seed, and a rejected `seniordata` row would reappear in the
+review queue. That defeats the approval gate the whole project rests on
+(`THREAT_MODEL.md` §4.8, LLM04), silently and on a schedule.
+
+Review state now lives in `$setOnInsert`. The source corpus stays authoritative
+for the *text*; the admin stays authoritative for whether the assistant may use
+it. Three tests hold the line: a status survives a re-import, the body is still
+refreshed, and a rejected CSV row does not return to the queue.
+
+### 4.10 A documented guarantee that nothing enforced
+
+`PRIVACY.md` §1 said the published repository contains only synthetic and
+licensed data, and step 05 said the `publishable: false` flag was "the
+enforcement". It was not: the flag governs the *database*, and nothing at all
+governed the repository.
+
+`npm run scan:personal-data` closes that. It slices the local CSV's free-text
+fields and looks for those passages in every tracked file — in `verify`, in the
+pre-commit hook, and in CI. On a machine without the file it says so and exits
+0, rather than pretending to have checked.
+
+It found two leaks on its first run:
+
+1. **This very README, and step 01's**, quoting a real interaction verbatim —
+   first name included — to illustrate why the file must stay private.
+2. **The test fixture in `seed.test.ts`**, copied from the real export with the
+   name changed and the real resolution sentence left in place.
+
+Both were written by me, in the act of explaining why real data must not be
+published. That is the argument for the check: the rule was understood, stated
+twice, and broken twice anyway.
+
 ## 5. Security controls added, and the test that proves each
 
 | Control | Where | Test |
@@ -301,6 +370,8 @@ with a comment saying why.
 | A pickle model artefact cannot be registered | `db/models/governance.ts` | "refuse a pickle model artefact" |
 | Unpublishable data can never be retrieved | `seed/seniordata.ts` | "never leaves an unpublishable row retrievable by the assistant" |
 | The seed never deletes or re-applies a password | `seed/seed.ts` | "is idempotent and never re-applies the seed password" |
+| A re-import cannot resurrect an entry an admin archived | `seed/techqa.ts`, `seed/seniordata.ts` | "never overwrites a decision an admin has made"; "does not return a rejected row to the review queue" |
+| The running application holds no credential that can alter the schema | `docker-compose.yml` | verified live: `printenv MONGODB_MIGRATION_URI` in the server container is empty |
 | Audit actions are a closed list | `db/validators.ts` | "reject an audit action that is not in the closed list" |
 | Multi-collection writes commit atomically | `db/connection.ts` | "commit several collections together, or not at all" |
 
@@ -315,9 +386,19 @@ Checklist rows moved to **done**: 11.7 and the new section 12 (nine rows) plus
 npm run verify            # format, lint, clean build, secret scan, checklist, 262 tests
 npm run test:coverage     # 94.63% statements, 84.05% branches
 npm run seed              # validators → indexes → admin → demo data → knowledge base
-npm run seed -- --fast    # skip the 292 MB technote metadata scan
-npm run seed -- --no-kb --no-seniordata
+npm run seed:fast         # the same, skipping the 292 MB technote metadata scan
+npm run seed:native       # for a server run natively, with your own MONGODB_MIGRATION_URI
 ```
+
+`npm run seed` runs in a **one-shot container**, not on the host and not inside
+the server. Two reasons, both found by running it (§4.8):
+
+* `mongo` is a hostname inside the Compose network, so the documented command
+  simply did not work from a host shell;
+* the seed is the only thing that holds the migration credential, and putting
+  it in the server's environment would undo the separation §3.2 exists for.
+  The server container sets `MONGODB_MIGRATION_URI` to an empty string, and
+  that is asserted: `printenv` in the running container returns nothing.
 
 ### 6.2 What a run actually prints
 

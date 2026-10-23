@@ -282,3 +282,53 @@ describe('looksLikePlaceholder', () => {
     expect(looksLikePlaceholder('9f2c1b7a4e8d0c3f6a5b2e9d8c7f1a4b')).toBe(false);
   });
 });
+
+describe('the migration connection string', () => {
+  /**
+   * The server container sets this to an empty string on purpose: the running
+   * application must not hold a credential that can alter the schema. Empty
+   * therefore has to mean "absent" rather than "invalid", or the server would
+   * refuse to boot over a variable it is not supposed to use.
+   */
+  it('treats an empty value as absent', () => {
+    expect(createEnv({ ...base, MONGODB_MIGRATION_URI: '' }).MONGODB_MIGRATION_URI).toBeUndefined();
+  });
+
+  it('is absent when it is not set at all', () => {
+    expect(createEnv(base).MONGODB_MIGRATION_URI).toBeUndefined();
+  });
+
+  it('accepts a real connection string', () => {
+    const uri = 'mongodb://csas_migrator:pw@mongo:27017/csas?replicaSet=rs0';
+    expect(createEnv({ ...base, MONGODB_MIGRATION_URI: uri }).MONGODB_MIGRATION_URI).toBe(uri);
+  });
+
+  it('refuses a value that is neither empty nor a connection string', () => {
+    expect(() => createEnv({ ...base, MONGODB_MIGRATION_URI: 'mongo:27017' })).toThrow(
+      EnvValidationError,
+    );
+  });
+});
+
+describe('seed data paths', () => {
+  it('default to the git-ignored locations the importers expect', () => {
+    const env = createEnv(base);
+    expect(env.TECHQA_PATH).toBe('data/external/techqa');
+    expect(env.SENIORDATA_PATH).toBe('reference/data/seniordata.csv');
+  });
+
+  it('can be pointed anywhere, since the corpus is 12 GB', () => {
+    const env = createEnv({ ...base, TECHQA_PATH: '/srv/corpora/techqa' });
+    expect(env.TECHQA_PATH).toBe('/srv/corpora/techqa');
+  });
+});
+
+describe('LOG_PRETTY', () => {
+  it('is off by default, so container output stays parseable', () => {
+    expect(createEnv(base).LOG_PRETTY).toBe(false);
+  });
+
+  it('can be turned on for a terminal', () => {
+    expect(createEnv({ ...base, LOG_PRETTY: 'true' }).LOG_PRETTY).toBe(true);
+  });
+});

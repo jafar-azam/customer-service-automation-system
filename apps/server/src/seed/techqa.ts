@@ -204,7 +204,9 @@ export interface ImportResult {
  *
  * Idempotent by `provenance.sourceRef`, which carries a unique index: running
  * the seed twice updates rather than duplicates, so a contributor can re-run it
- * without wondering whether the knowledge base now says everything twice.
+ * without wondering whether the knowledge base now says everything twice. The
+ * *status* is written only on insert, so a re-run never undoes an admin's
+ * decision to archive an entry.
  *
  * Entries are imported as **approved**, because importing a licensed reference
  * corpus is an administrative act and the alternative — 621 rows in the review
@@ -241,9 +243,7 @@ export async function importTechQa({
           question: instance.questionText.slice(0, 2000),
           body: instance.answer.slice(0, 8000),
           language: 'en',
-          status: 'approved',
           ...(documentMeta?.productName ? { product: documentMeta.productName.slice(0, 200) } : {}),
-          ...(approvedByStaffId ? { approvedByStaffId, approvedAt: new Date() } : {}),
           provenance: {
             source: 'techqa',
             license: TECHQA_LICENSE,
@@ -259,7 +259,17 @@ export async function importTechQa({
             piiRedaction: 'pending',
           },
         },
-        $setOnInsert: { version: 1 },
+        $setOnInsert: {
+          version: 1,
+          /* Review state is set **only on insert**. A later run must not
+             overwrite a human decision: if an admin archives an entry because
+             it is wrong, re-seeding would otherwise resurrect it as approved —
+             silently defeating the approval gate this whole project rests on.
+             The source corpus stays authoritative for the *text*; the admin
+             stays authoritative for whether the assistant may use it. */
+          status: 'approved',
+          ...(approvedByStaffId ? { approvedByStaffId, approvedAt: new Date() } : {}),
+        },
       },
       { upsert: true },
     );

@@ -103,10 +103,11 @@ holds **52 rows** with exactly the columns the specification lists, plus `Locati
 `CallDurationSeconds`, `AgentID` and `CustomerID`. Two things matter for how it is handled:
 
 1. **It contains personal data in free text.** Agent and customer IDs are pseudonymous, but the
-   interaction text is not — it carries first names ("Jadav called to check his porting out
-   status"), gendered references and churn/complaint detail tied to an identifiable person. That is
-   personal data under `privacy-law.md`'s definition, and it is precisely what must never reach a
-   public repository.
+   interaction text is not — it carries first names (one row reads "&lt;first name&gt; called to
+   check his porting out status", with the real name in place), gendered references and
+   churn/complaint detail tied to an identifiable person. That is personal data under
+   `privacy-law.md`'s definition, and it is precisely what must never reach a public repository —
+   which is why the example above is paraphrased rather than quoted.
 2. **The domain is Indian mobile telecom, not Lebanese IT support** — porting to Idea and BSNL,
    data plans, national roaming. It is a perfectly good shape to validate the column mapping
    against, and a poor source of knowledge-base content for this product.

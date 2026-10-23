@@ -40,6 +40,11 @@ jobs:
         run: npm run lint
       - name: Security checklist is internally consistent
         run: npm run audit:checklist
+      - name: No local-only personal data in tracked files
+        # A no-op on a runner, which never holds the file. It runs here so a
+        # broken scanner is caught by CI rather than by the pre-commit hook of
+        # the one person who does hold it.
+        run: npm run scan:personal-data
       - name: Type-check and build
         run: npm run build
       - name: Tests with coverage

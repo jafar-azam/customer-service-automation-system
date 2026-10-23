@@ -80,3 +80,16 @@ describe('the audit', () => {
     expect(audit(header(0, 0, 0)).problems.some((p) => p.includes('no rows found'))).toBe(true);
   });
 });
+
+describe('the count line', () => {
+  /* The sentence around the numbers is prose and gets re-worded; only the
+     numbers are the contract. An audit that fails on an edited sentence is an
+     audit someone disables. */
+  it.each([
+    'Counts as of step 04: **1 done, 1 planned, 0 accepted**.\n\n',
+    'Counts as of the step 05 review, re-derived by the audit:\n**1 done, 1 planned, 0 accepted**.\n\n',
+  ])('is recognised however the sentence is phrased', (header) => {
+    const markdown = header + row('1.1', '**done**') + row('1.2', 'step 06');
+    expect(audit(markdown).problems).toEqual([]);
+  });
+});

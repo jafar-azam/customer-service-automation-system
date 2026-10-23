@@ -80,9 +80,16 @@ export const envSchema = z.object({
      back to MONGODB_URI, which is what the in-memory test database and a
      single-user local setup need. */
   MONGODB_MIGRATION_URI: z
-    .string()
-    .regex(/^mongodb(\+srv)?:\/\//, 'must be a mongodb:// connection string')
-    .optional(),
+    .union([
+      /* Empty means "not available to this process". The server container sets
+         it to an empty string deliberately: the running application must not
+         hold a credential that can alter the schema, and silence is clearer
+         than hoping nobody passes it. */
+      z.literal(''),
+      z.string().regex(/^mongodb(\+srv)?:\/\//, 'must be a mongodb:// connection string'),
+    ])
+    .optional()
+    .transform((value) => (value === '' ? undefined : value)),
   REDIS_URL: z.string().regex(/^rediss?:\/\//, 'must be a redis:// connection string'),
 
   ACCESS_TOKEN_SECRET: secret,

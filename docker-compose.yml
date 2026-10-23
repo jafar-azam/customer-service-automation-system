@@ -168,6 +168,11 @@ services:
       # Inside the network the hostnames are service names, whatever .env says
       # for native development.
       MONGODB_URI: mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongo:27017/${MONGODB_DB:-csas}?replicaSet=rs0&authSource=${MONGODB_DB:-csas}
+      # Blanked on purpose. `.env` carries the migration credential for the seed
+      # service below, and env_file would otherwise hand it to the application
+      # as well — which would undo the whole point of a separate identity: a
+      # compromised server must not be able to drop a validator or an index.
+      MONGODB_MIGRATION_URI: ''
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       ML_SERVICE_URL: http://ml:8000
       CLAMAV_HOST: clamav
@@ -222,6 +227,32 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
+
+  # ── One-shot: prepare the database (`npm run seed`) ─────────────────────────
+  # A separate container rather than a command inside the server, because this
+  # is the only thing that holds the migration credential. It uses the same
+  # image, runs to completion and exits.
+  seed:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+      target: runtime
+    profiles: ['seed']
+    depends_on:
+      mongo-init:
+        condition: service_completed_successfully
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      MONGODB_URI: mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongo:27017/${MONGODB_DB:-csas}?replicaSet=rs0&authSource=${MONGODB_DB:-csas}
+      MONGODB_MIGRATION_URI: mongodb://${MONGODB_MIGRATION_USERNAME:-csas_migrator}:${MONGODB_MIGRATION_PASSWORD}@mongo:27017/${MONGODB_DB:-csas}?replicaSet=rs0&authSource=${MONGODB_DB:-csas}
+    volumes:
+      # The corpora live on the host: 12 GB that must not be baked into an
+      # image, and a CSV that must never leave this machine. Read-only.
+      - ./data:/app/data:ro
+      - ./reference:/app/reference:ro
+    command: ['node', 'apps/server/dist/seed/index.js']
 
   # ── Optional: malware scanning for attachments (profile "scan") ─────────────
   # ~1.5-2 GB of RAM and a ~300 MB signature download on first start, which is

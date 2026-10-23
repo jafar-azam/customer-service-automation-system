@@ -3,4 +3,9 @@
 # slowest and the other two catch more mistakes per second.
 npx lint-staged
 npm run secrets:scan -- --staged
+
+# Local-only real data must never reach a tracked file. Only does anything on a
+# machine that holds reference/data/seniordata.csv — which is the only machine
+# that can leak it.
+npm run scan:personal-data
 npm run typecheck

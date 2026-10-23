@@ -180,6 +180,42 @@ describe('the TechQA importer', () => {
     expect(await KbEntry.countDocuments()).toBe(1);
   });
 
+  /* The approval gate is the project's main defence against teaching the
+     assistant its own mistakes. A re-import that resurrects an entry an admin
+     archived would defeat it silently — the entry would simply be back, and
+     approved, with nobody notified. */
+  it('never overwrites a decision an admin has made', async () => {
+    const root = await writeTechQaFixture();
+    await importTechQa({ root, logger, withMetadata: false });
+
+    await KbEntry.updateOne(
+      { 'provenance.sourceRef': 'TRAIN_Q000' },
+      { $set: { status: 'archived', reviewNote: 'wrong for our product' } },
+    );
+
+    await importTechQa({ root, logger, withMetadata: false });
+
+    const entry = await KbEntry.findOne({ 'provenance.sourceRef': 'TRAIN_Q000' }).lean();
+    expect(entry?.status).toBe('archived');
+    expect(entry?.reviewNote).toBe('wrong for our product');
+  });
+
+  it('still refreshes the text from the source corpus', async () => {
+    const root = await writeTechQaFixture();
+    await importTechQa({ root, logger, withMetadata: false });
+    await KbEntry.updateOne(
+      { 'provenance.sourceRef': 'TRAIN_Q000' },
+      { $set: { body: 'stale text' } },
+    );
+
+    await importTechQa({ root, logger, withMetadata: false });
+
+    const entry = await KbEntry.findOne({ 'provenance.sourceRef': 'TRAIN_Q000' }).lean();
+    /* The corpus stays authoritative for content; the admin stays
+       authoritative for whether the assistant may use it. */
+    expect(entry?.body).toContain('streamtool setproperty');
+  });
+
   it('says so rather than failing when the corpus is absent', async () => {
     const result = await importTechQa({ root: '/nonexistent', logger, withMetadata: false });
     expect(result).toEqual({ inserted: 0, updated: 0, skipped: 0, withMetadata: 0 });
@@ -188,9 +224,18 @@ describe('the TechQA importer', () => {
 
 /* ── seniordata.csv ─────────────────────────────────────────────────────── */
 
+/**
+ * Entirely invented, in this product's own domain.
+ *
+ * An earlier version of this fixture was copied from the real export with the
+ * name changed, which left a genuine resolution sentence in a tracked file —
+ * `npm run scan:personal-data` caught it. A fixture only needs the *shape* of
+ * the real file: the same columns, a row that imports and a row that must be
+ * skipped.
+ */
 const CSV = `RecordID,CustomerInteractionRawText,AgentAssignedTopic,TopicCategory,ResolutionText,Priority,FollowUpRequired
-1890041,"Cus not satisfied with service. Jadav wants to port out.",Port Out,Account Management,"Explained porting process and transfer time.",High,Yes
-1890042,"Asked about billing.",Billing,Finance,"",Low,No
+1890041,"Stock counts in the warehouse module stopped syncing overnight.",Port Out,Account Management,"Re-ran the nightly sync job and corrected the timezone on the scheduler.",High,Yes
+1890042,"Asked how to add a second till to the licence.",Billing,Finance,"",Low,No
 `;
 
 describe('the seniordata importer', () => {
@@ -239,6 +284,21 @@ describe('the seniordata importer', () => {
       'provenance.publishable': false,
     });
     expect(approved).toBe(0);
+  });
+
+  it('does not return a rejected row to the review queue', async () => {
+    const path = join(await mkdtemp(join(tmpdir(), 'csas-csv-')), 'seniordata.csv');
+    await writeFile(path, CSV);
+    await importSeniordata({ path, logger });
+
+    await KbEntry.updateOne(
+      { 'provenance.source': 'seniordata_csv' },
+      { $set: { status: 'archived' } },
+    );
+    await importSeniordata({ path, logger });
+
+    const entry = await KbEntry.findOne({ 'provenance.source': 'seniordata_csv' }).lean();
+    expect(entry?.status).toBe('archived');
   });
 
   it('skips silently when the file is not present', async () => {

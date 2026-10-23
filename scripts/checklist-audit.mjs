@@ -98,10 +98,13 @@ export function audit(markdown) {
 
   if (rows.length === 0) problems.push(`${CHECKLIST}: no rows found — has the format changed?`);
 
-  /* `[\s\S]*?` rather than a space: the sentence wraps across lines once the
-     explanation of the count is long enough to need it. */
-  const declared =
-    /Counts as of step \d+[\s\S]*?\*\*(\d+) done, (\d+) planned, (\d+) accepted\*\*/.exec(markdown);
+  /* `[\s\S]*?` rather than a space: the sentence wraps across lines, and its
+     wording changes as the document grows. Only the numbers are the contract —
+     an audit that fails because a sentence was edited is an audit someone
+     switches off. */
+  const declared = /Counts as of[\s\S]*?\*\*(\d+) done, (\d+) planned, (\d+) accepted\*\*/.exec(
+    markdown,
+  );
   if (!declared) {
     problems.push(`${CHECKLIST}: the header count line is missing`);
   } else {

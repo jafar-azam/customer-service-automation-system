@@ -175,8 +175,6 @@ export async function importSeniordata({
           category: row.TopicCategory?.trim().slice(0, 200),
           language: 'en',
           tags: buildTags(row),
-          /* The gate, on real data. */
-          status: 'pending_review',
           provenance: {
             source: SENIORDATA_SOURCE,
             license: PROPRIETARY_LOCAL_LICENSE,
@@ -188,7 +186,13 @@ export async function importSeniordata({
             piiRedaction: 'pending',
           },
         },
-        $setOnInsert: { version: 1 },
+        $setOnInsert: {
+          version: 1,
+          /* The gate, on real data — and set only on insert, so re-running the
+             seed cannot return a row an admin has already rejected to the
+             review queue. */
+          status: 'pending_review',
+        },
       },
       { upsert: true },
     );

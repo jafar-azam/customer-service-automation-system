@@ -20,8 +20,8 @@ reports anything that does not hold.
 L2 · A0x = OWASP Top 10 2021 · API0x = OWASP API Security Top 10 2023 ·
 LLM0x = OWASP Top 10 for LLM Applications 2025.
 
-Counts as of step 05, re-derived from the table by `npm run audit:checklist`
-rather than written by hand: **29 done, 69 planned, 1 accepted**. (The numbered
+Counts as of the step 05 review, re-derived from the table by `npm run audit:checklist`
+rather than written by hand: **31 done, 69 planned, 1 accepted**. (The numbered
 rows count one `accepted`; the five further acceptances have no requirement id
 because they are infrastructure decisions, and are listed at the end.)
 
@@ -170,6 +170,8 @@ because they are infrastructure decisions, and are listed at the end.)
 | 12.4 | Credentials and personal data not returned by default | ASVS 8.1 | `select: false` on hashes, secrets and the encrypted phone | `db/models/*` | three "sensitive fields" tests | **done** |
 | 12.5 | Retention enforced by the database, not only by a job | — | TTL indexes on sessions, OTP challenges, reset tokens | `db/models/governance.ts` | "are declared on sessions, OTP challenges and reset tokens" | **done** |
 | 12.6 | Unpublishable data can never be retrieved by the assistant | — | Imported as `pending_review`; retrieval reads approved only | `seed/seniordata.ts` | "never leaves an unpublishable row retrievable by the assistant" | **done** |
+| 12.10 | **Local-only real data cannot reach a tracked file** | — | Slices of the real export compared against every tracked file, in `verify` and pre-commit | `scripts/personal-data-scan.mjs` | 10 tests; found two real leaks on its first run | **done** |
+| 12.11 | A re-import cannot resurrect an entry an admin archived | LLM04 | Review state written only on insert | `seed/techqa.ts`, `seed/seniordata.ts` | "never overwrites a decision an admin has made" | **done** |
 | 12.7 | The seed never deletes, and never re-applies a changed password | — | Upserts and create-if-absent only | `seed/seed.ts` | "is idempotent and never re-applies the seed password" | **done** |
 | 12.8 | A model artefact format that executes code on load cannot be recorded | LLM03 | Enumeration limited to safetensors and ONNX | `db/models/governance.ts` | "refuse a pickle model artefact" | **done** |
 | 12.9 | Multi-collection invariants commit atomically | — | Single-node replica set; transactions available | `db/connection.ts` | "commit several collections together, or not at all" | **done** |

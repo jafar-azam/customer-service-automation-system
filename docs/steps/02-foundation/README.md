@@ -207,7 +207,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh   # done
 # From a fresh clone
 npm ci                      # installs all workspaces, sets up Husky hooks
 npm run setup               # writes .env with generated secrets, prints demo login
-npm run up                  # setup + docker compose up --build -d   (needs Docker)
+npm run up                  # setup + compose up --wait + seed   (needs Docker)
 
 # Day-to-day
 npm run verify              # format:check + lint + build + secret scan + tests
