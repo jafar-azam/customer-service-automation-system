@@ -5,6 +5,7 @@ import { StaffUser } from '../../db/models/index.js';
 import { maskEmail } from '../../observability/logger.js';
 import { record } from '../audit.js';
 import { hashPassword, spendVerificationTime, verifyPassword } from './password.js';
+import { consumeRecoveryCode } from './recovery.js';
 import { verifyStoredTotp } from './totp.js';
 import { createSession, issueAccessToken, type CreatedSession } from './tokens.js';
 
@@ -64,6 +65,8 @@ export interface LoginInput {
   readonly email: string;
   readonly password: string;
   readonly totp?: string;
+  /** Used instead of a one-time code when the authenticator is lost. */
+  readonly recoveryCode?: string;
   readonly userAgent?: string;
   readonly ip?: string;
 }
@@ -102,7 +105,7 @@ async function countFailure(
 }
 
 export async function login(
-  { email, password, totp, userAgent, ip }: LoginInput,
+  { email, password, totp, recoveryCode, userAgent, ip }: LoginInput,
   { env, logger }: LoginDeps,
 ): Promise<LoginResult> {
   const normalizedEmail = email.trim().toLowerCase();
@@ -164,15 +167,24 @@ export async function login(
   }
 
   if (totpRequired) {
-    if (totp === undefined || totp === '') return { kind: 'totp_required' };
-
-    const cipher = new SecretCipher(env.PHONE_ENCRYPTION_KEY);
-    if (!verifyStoredTotp(cipher, String(staff.totpSecretEncrypted), totp, normalizedEmail)) {
-      /* A wrong code counts towards the same lockout as a wrong password:
-         otherwise the second factor is a free 6-digit guessing game for
-         anyone who has the password. */
-      await countFailure(staff, logger, auditBase, 'bad_totp');
-      return { kind: 'invalid_credentials' };
+    /* A recovery code stands in for the authenticator. It is checked first
+       because someone using one has, by definition, no code to offer. */
+    if (recoveryCode !== undefined && recoveryCode !== '') {
+      if (!(await consumeRecoveryCode(staff._id, recoveryCode, logger))) {
+        await countFailure(staff, logger, auditBase, 'bad_recovery_code');
+        return { kind: 'invalid_credentials' };
+      }
+    } else if (totp === undefined || totp === '') {
+      return { kind: 'totp_required' };
+    } else {
+      const cipher = new SecretCipher(env.PHONE_ENCRYPTION_KEY);
+      if (!verifyStoredTotp(cipher, String(staff.totpSecretEncrypted), totp, normalizedEmail)) {
+        /* A wrong code counts towards the same lockout as a wrong password:
+           otherwise the second factor is a free 6-digit guessing game for
+           anyone who has the password. */
+        await countFailure(staff, logger, auditBase, 'bad_totp');
+        return { kind: 'invalid_credentials' };
+      }
     }
   }
 

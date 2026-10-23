@@ -11,6 +11,7 @@
     "dev": "node --watch --env-file-if-exists=../../.env --import tsx src/index.ts",
     "start": "node dist/index.js",
     "seed": "node --env-file-if-exists=../../.env dist/seed/index.js",
+    "break-glass": "node --env-file-if-exists=../../.env dist/cli/break-glass-main.js",
     "seed:dev": "node --env-file-if-exists=../../.env --import tsx src/seed/index.ts",
     "test": "vitest run"
   },

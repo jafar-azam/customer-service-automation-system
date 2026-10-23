@@ -20,8 +20,8 @@ reports anything that does not hold.
 L2 · A0x = OWASP Top 10 2021 · API0x = OWASP API Security Top 10 2023 ·
 LLM0x = OWASP Top 10 for LLM Applications 2025.
 
-Counts as of step 06, re-derived from the table by `npm run audit:checklist`
-rather than written by hand: **46 done, 54 planned, 1 accepted**. (The numbered
+Counts as of step 07, re-derived from the table by `npm run audit:checklist`
+rather than written by hand: **56 done, 54 planned, 1 accepted**. (The numbered
 rows count one `accepted`; the five further acceptances have no requirement id
 because they are infrastructure decisions, and are listed at the end.)
 
@@ -154,7 +154,7 @@ because they are infrastructure decisions, and are listed at the end.)
 | 11.3 | Log injection through headers refused | ASVS 7.1 | `x-request-id` character and length rules | `http/observability-middleware.ts` | newline/length/punctuation cases, both services | **done** |
 | 11.4 | Internal errors leak nothing but a request id | ASVS 7.4, A09 | Bare 500 plus id | `http/errors.ts` | "leaking nothing" | **done** |
 | 11.5 | Append-only audit log for security-relevant events | ASVS 7.2 | One verb, `record`; no update or delete path exists | `services/audit.ts` | four audit tests; a write failure never fails the request | **done** |
-| 11.6 | Audit covers logins, recovery, roles, KB, models, exports, deletions, contracts | ASVS 7.2 | Closed action list; logins and lockouts recorded | `services/audit.ts` | login/lockout/reuse covered; the rest follow their steps | step 07–31 |
+| 11.6 | Audit covers logins, recovery, roles, KB, models, exports, deletions, contracts | ASVS 7.2 | Closed action list | `services/audit.ts` | logins, lockouts, reuse, reset, enrolment, admin reset and break-glass covered; KB/model/export events follow their steps | step 17–31 |
 | 11.7 | Phone numbers encrypted at rest with a hashed lookup index | — | AES-256-GCM + peppered HMAC; login never decrypts | `crypto/phone.ts` | 28 tests incl. "stores demo phone numbers encrypted and hashed, never in the clear" | **done** |
 | 11.8 | Retention periods enforced per category | — | Scheduled sweeps | `jobs/retention` | record deleted after its period | step 14 |
 | 11.9 | Admin-triggered export and deletion of a customer's data | — | Including removal from future training data | `services/privacy` | exported bundle complete; deleted record not exportable | step 29 |
@@ -197,6 +197,21 @@ because they are infrastructure decisions, and are listed at the end.)
 | 14.5 | Containers run as non-root | A05 | `node`, `mlsvc` | Dockerfiles | verified live: `whoami` per container | **done** |
 | 14.6 | Third-party licence report | — | Generated at release | `docs/` | report produced and reviewed | step 37 |
 | 14.7 | Every dataset record carries its licence and publishability | — | `provenance` required on knowledge and dataset records | `db/models/knowledge.ts` | import tests assert licence, publishability and lineage | **done** |
+
+## 15. Staff recovery
+
+| # | Requirement | Std | Control | Code | Test | Status |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| 15.1 | Reset token single-use, hashed, 30-minute expiry | ASVS 2.5 | SHA-256 of a 256-bit token; one live token per account | `services/auth/recovery.ts` | "refuses a token that has already been used"; "refuses an expired token" | **done** |
+| 15.2 | Identical response whether or not the account exists | ASVS 2.2 | One 202 for every outcome | `services/auth/recovery.ts` | "answers identically for an address that does not exist" | **done** |
+| 15.3 | All sessions revoked after a reset | ASVS 3.3 | `revokeAllForStaff` in the same operation | `services/auth/recovery.ts` | "revokes every session the account had" | **done** |
+| 15.4 | A reset does not bypass the second factor | ASVS 2.8 | 2FA is checked independently of the password | `services/auth/login.ts` | verified live (step 07 §5, check E) | **done** |
+| 15.5 | Ten single-use recovery codes, hashed, shown once | ASVS 2.8 | Conditional update enforces single use | `services/auth/recovery.ts` | "spends the code, so it cannot be used twice" | **done** |
+| 15.6 | A wrong recovery code costs a lockout attempt | ASVS 2.2 | Shared failure counter | `services/auth/login.ts` | "counts a wrong code towards the lockout" | **done** |
+| 15.7 | Enrolment reachable only with a narrow, short-lived ticket | ASVS 2.8 | Separate JWT audience, five minutes | `services/auth/enrolment.ts` | "refuses an enrolment ticket as an access token" and the reverse | **done** |
+| 15.8 | The TOTP secret is stored only after a code proves it | — | Written at confirm, not at start | `services/auth/enrolment.ts` | "does not store the secret until a code proves it was scanned" | **done** |
+| 15.9 | Admin-assisted 2FA reset needs typed confirmation and is audited | ASVS 7.2 | Target email typed; both identities recorded | `services/auth/enrolment.ts` | four tests incl. "refuses an admin resetting their own second factor" | **done** |
+| 15.10 | Break-glass requires server access and is audited | ASVS 7.2 | CLI only; `staff.break_glass_used` | `cli/break-glass.ts` | 5 argument tests; exercised live in step 07 §5 | **done** |
 
 ---
 

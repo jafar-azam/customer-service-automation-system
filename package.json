@@ -38,6 +38,7 @@
     "verify": "npm run format:check && npm run lint && npm run build && npm run secrets:scan && npm run scan:personal-data && npm run audit:checklist && npm run test",
     "setup": "node scripts/setup.mjs",
     "seed": "docker compose --profile seed run --rm --build seed",
+    "break-glass": "docker compose --profile seed run --rm --build seed node apps/server/dist/cli/break-glass-main.js",
     "seed:fast": "docker compose --profile seed run --rm seed node apps/server/dist/seed/index.js --fast",
     "seed:native": "npm run build -w @csas/shared && npm run build -w @csas/server && npm run seed -w @csas/server",
     "pin:images": "node scripts/pin-images.mjs",
