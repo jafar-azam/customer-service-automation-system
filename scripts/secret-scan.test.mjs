@@ -21,6 +21,10 @@ const fixtures = {
   assignedEnv: 'ACCESS_TOKEN_SECRET=Hq8vK2mZ9pX4tL7wR1yB3nC6', // secret-scan:allow
 };
 
+/* Kept out of `fixtures`, which is iterated by the rule-coverage suite: a bare
+   value with no assignment around it is correctly not a finding on its own. */
+const SECRET_SHAPED_VALUE = 'Hq8vK2mZ9pX4tL7wR1yB3nC6'; // secret-scan:allow
+
 describe('rule coverage', () => {
   for (const [name, text] of Object.entries(fixtures)) {
     it(`detects ${name}`, () => {
@@ -119,5 +123,26 @@ describe('helpers', () => {
       'const url = "https://example.com/api/tickets";',
     ].join('\n');
     expect(scanText(source)).toHaveLength(0);
+  });
+});
+
+describe('a call expression is not a secret', () => {
+  /* `context_token = request_id_var.set(request_id)` tripped the broad
+     assignment rule purely because the variable name ends in "token". A
+     credential is a literal or an environment lookup, never an inline call. */
+  it('ignores an assignment whose value is a function call', () => {
+    expect(scanText('context_token = request_id_var.set(request_id)')).toHaveLength(0);
+  });
+
+  it('ignores a call with a dotted receiver', () => {
+    expect(scanText('session_token = self.client.issue_token(user_id, scope)')).toHaveLength(0);
+  });
+
+  it('still flags a literal assigned to the same name', () => {
+    expect(scanText(`session_token = "${SECRET_SHAPED_VALUE}"`).length).toBeGreaterThan(0);
+  });
+
+  it('still flags a provider-issued credential inside a call', () => {
+    expect(scanText('login(AKIAIOSFODNN7EXAMPLE)').length).toBeGreaterThan(0); // secret-scan:allow
   });
 });

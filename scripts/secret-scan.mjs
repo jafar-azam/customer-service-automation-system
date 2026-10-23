@@ -113,6 +113,18 @@ export function entropy(value) {
   return bits;
 }
 
+/**
+ * `context_token = request_id_var.set(request_id)` is an assignment whose
+ * left-hand side ends in `token`, so the broad assignment rules match it — and
+ * every call expression like it. A credential is a literal or an environment
+ * lookup; it is never the return value of a function call written inline. This
+ * is the one shape safe to exclude, and excluding it keeps the scanner's output
+ * worth reading, which is what makes a pre-commit gate survive.
+ */
+export function isCallExpression(value) {
+  return /\w\s*\(.*\)$/.test(value.trim());
+}
+
 export function isPlaceholder(value) {
   const v = value.toLowerCase();
   if (PLACEHOLDER.some((p) => v.includes(p))) return true;
@@ -155,6 +167,7 @@ export function scanText(text) {
            a whole provider-issued credential shape never do: there is no
            legitimate reason for one of those to appear at all. */
         if (rule.value > 0 && isPlaceholder(value)) continue;
+        if (rule.broad && isCallExpression(value)) continue;
         if (rule.broad) {
           /* Below this, a value is a word or a path, not a credential.
              Tuned so `password = "Tr0ub4dor&3xyz"` still trips the rule. */ // secret-scan:allow

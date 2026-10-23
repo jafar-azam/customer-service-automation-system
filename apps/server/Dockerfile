@@ -54,9 +54,11 @@ USER node
 
 EXPOSE 4000
 
-# Step 03 replaces this with /ready, which also checks MongoDB and Redis.
+# /api/ready, not /api/health: Compose gates dependent services on this, and
+# "the process is up" is not the question those services are asking. A failing
+# critical dependency (MongoDB from step 05) must hold them back.
 HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||4000)+'/api/version').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||4000)+'/api/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 # No npm in the entrypoint: npm would be PID 1 and would not forward SIGTERM,
 # so the graceful shutdown in index.ts would never run.

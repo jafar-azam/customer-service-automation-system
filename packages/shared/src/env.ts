@@ -62,6 +62,10 @@ export const envSchema = z.object({
   NODE_ENV: nodeEnv.default('development'),
   PORT: port.default(4000),
   LOG_LEVEL: logLevel.default('info'),
+  /* Human-readable logs for a terminal. Off by default and never on in a
+     container: the log shipper wants one JSON object per line, and pino-pretty
+     is a dev dependency that production does not install. */
+  LOG_PRETTY: boolish.default(false),
   /* SLA timers, business hours and Lebanese public holidays are all computed in
      this zone, so it is configuration rather than a hard-coded constant — but it
      defaults to the one the product is designed around. */

@@ -1,19 +1,27 @@
 import type { NextFunction, Request, Response } from 'express';
+import type { Logger } from 'pino';
+import type { ErrorTracker } from '../observability/error-tracking.js';
+import type { Metrics } from '../observability/metrics.js';
+import { matchedRoutePath, routeLabel } from '../observability/metrics.js';
+import { getRequestId } from '../observability/request-context.js';
 
 /**
  * One error shape for every endpoint, so that clients never have to guess:
  *
- *   { "error": { "code": "not_found", "message": "..." } }
+ *   { "error": { "code": "not_found", "message": "...", "requestId": "..." } }
  *
  * `code` is a stable machine-readable string; `message` is for a developer
  * reading logs, not for a customer — user-facing copy is translated on the
  * client from the code. Anything a caller should act on goes in `details`.
+ * `requestId` is the thread back to the log line: a customer can quote it, and
+ * it is the only detail of an internal failure that ever leaves the process.
  */
 export interface ApiErrorBody {
   readonly error: {
     readonly code: string;
     readonly message: string;
     readonly details?: unknown;
+    readonly requestId?: string;
   };
 }
 
@@ -72,46 +80,91 @@ function asBodyParserError(error: unknown): ApiError | undefined {
 
 export function notFoundHandler(_req: Request, res: Response): void {
   const body: ApiErrorBody = {
-    error: { code: 'not_found', message: 'Resource not found' },
+    error: {
+      code: 'not_found',
+      message: 'Resource not found',
+      ...withRequestId(),
+    },
   };
   res.status(404).json(body);
+}
+
+function withRequestId(): { requestId?: string } {
+  const requestId = getRequestId();
+  return requestId === undefined ? {} : { requestId };
+}
+
+export interface ErrorHandlerOptions {
+  readonly logger: Logger;
+  readonly metrics: Metrics;
+  readonly errorTracker: ErrorTracker;
 }
 
 /**
  * Terminal error handler.
  *
- * Unknown errors are reported as a bare 500 on purpose: an internal message can
+ * Unknown errors are answered as a bare 500 on purpose: an internal message can
  * carry a stack trace, a file path or a query, and that belongs in the log, not
- * in a response. Step 03 adds the logging and the request id that ties the two
- * together.
+ * in a response. The request id appears in both, which is what makes the
+ * redaction affordable — the caller gets an identifier, the operator gets the
+ * detail, and nobody has to choose between a useful error and a safe one.
  */
-export function errorHandler(
-  error: unknown,
-  _req: Request,
-  res: Response,
-  next: NextFunction,
-): void {
-  if (res.headersSent) {
-    next(error);
-    return;
-  }
+export function createErrorHandler({ logger, metrics, errorTracker }: ErrorHandlerOptions) {
+  return function errorHandler(
+    error: unknown,
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): void {
+    if (res.headersSent) {
+      /* The response is already on the wire; Express's default handler closes
+         the connection. Logged because a half-written response is a bug. */
+      logger.error({ err: error }, 'error after response started');
+      next(error);
+      return;
+    }
 
-  const apiError = error instanceof ApiError ? error : asBodyParserError(error);
+    const apiError = error instanceof ApiError ? error : asBodyParserError(error);
+    const route = routeLabel(req.baseUrl, matchedRoutePath(req));
 
-  if (apiError) {
+    if (apiError) {
+      metrics.errorsTotal.inc({ code: apiError.code });
+      /* An expected, handled rejection: `info`, not `error`. Logging a 404 at
+         error level is how error-rate alerts become noise that gets muted. */
+      logger.info(
+        { code: apiError.code, status: apiError.status, route, method: req.method },
+        'request rejected',
+      );
+
+      const body: ApiErrorBody = {
+        error: {
+          code: apiError.code,
+          message: apiError.message,
+          ...(apiError.details === undefined ? {} : { details: apiError.details }),
+          ...withRequestId(),
+        },
+      };
+      res.status(apiError.status).json(body);
+      return;
+    }
+
+    metrics.errorsTotal.inc({ code: 'internal_error' });
+    logger.error({ err: error, route, method: req.method }, 'unhandled error');
+    errorTracker.capture({
+      error,
+      ...withRequestId(),
+      route,
+      method: req.method,
+      statusCode: 500,
+    });
+
     const body: ApiErrorBody = {
       error: {
-        code: apiError.code,
-        message: apiError.message,
-        ...(apiError.details === undefined ? {} : { details: apiError.details }),
+        code: 'internal_error',
+        message: 'Internal server error',
+        ...withRequestId(),
       },
     };
-    res.status(apiError.status).json(body);
-    return;
-  }
-
-  const body: ApiErrorBody = {
-    error: { code: 'internal_error', message: 'Internal server error' },
+    res.status(500).json(body);
   };
-  res.status(500).json(body);
 }
