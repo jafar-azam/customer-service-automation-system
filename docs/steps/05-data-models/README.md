@@ -459,12 +459,17 @@ Checks 1–8 were run; the output above is what they produced.
 
 ## 8. Test results
 
+After the review pass in §4.8–4.10:
+
 ```
-Node:   262 tests, 17 files      Statements 94.63%  Branches 84.05%  Functions 90.43%
+Node:   290 tests, 19 files      Statements 95.48%  Branches 85.61%  Functions 91.37%
 Python:  32 tests
-Tooling: 69 tests
-Lint, format, clean build (tsc -b --force), secret scan, checklist audit: clean
-Stack:  6/6 healthy; /api/ready reports mongodb and ml
+Tooling: 81 tests
+Lint, format, clean build (tsc -b --force): clean
+secret-scan: clean (tracked files, and 249 blobs across full git history)
+personal-data-scan: clean (101 protected passages, none in tracked files)
+checklist-audit: 101 requirements — 31 done, 69 planned, 1 accepted
+Stack:  6/6 healthy; /api/ready reports mongodb (critical) and ml (non-critical)
 Seed:   618 knowledge entries + 52 unpublishable candidates + 3 customers + 1 admin
 ```
 
@@ -504,3 +509,7 @@ are finally the same file.
 - [x] Tests against a real replica set, including transactions and validators
 - [x] MongoDB registered as a **critical** readiness dependency
 - [x] Seed run against the live stack and the result inspected in the database
+- [x] Reviewed: every documented command run as written, four defects fixed
+- [x] A re-import cannot undo an admin's decision
+- [x] Local-only personal data cannot reach a tracked file, and the check that
+      says so is itself tested
