@@ -28,31 +28,64 @@ sources checked at the time) for experiment tracking, calibration, contrastive f
 promotion gates, instead of on a commissioned report. If you can commission one more report on
 those four topics, Phase 7 gets stronger; if not, the plan proceeds.
 
-### 1.2 Reference — missing entirely
+### 1.2 Reference — missing at first, supplied on 2026-10-23
 
-`/reference` does not exist. Nothing was deleted; the folder was never there. Missing:
+The folder was empty when this step was written, and the plan said the four
+artefacts would be authored from the specification if they never arrived. They
+arrived. All five inputs now sit in `reference/` (git-ignored, see §9), copied
+from the machine's Windows profile:
 
-| Input | Needed by | Blocking? |
+| Input | File in `reference/` | Dated |
 | :-- | :-- | :-- |
-| `data/seniordata.csv` (seed KB) | 05 CSV import, 15 RAG, 19 pipeline | **No** — see 1.3 |
-| Sequence diagram | 01 (`docs/00-overview`), 11, 16 | No, with a caveat |
-| Use-case diagram | 01 (`docs/00-overview`) | No, with a caveat |
-| Level-1 DFD | 04 threat model (trust boundaries per data flow) | No, with a caveat |
-| Normalized database schema | 05 data models | No, with a caveat |
+| Sequence diagram | `sequence-diagram.png` (+ the Dec-2024 draft) | Apr 2025 |
+| Use-case diagram | `use-case-diagram.png` (+ the Dec-2024 draft) | Apr 2025 |
+| Level-1 DFD | `dfd-level1.drawio` | Apr 2025 |
+| Normalized schema (EERD) | `eerd-schema.drawio` | Dec 2024 |
+| Class diagram (bonus) | `class-diagram.drawio` | Dec 2024 |
+| Seed KB | `data/seniordata.csv` | Mar 2025 |
 
-The caveat: section 1 of your specification already describes the customer flow, the roles, the
-data flow and the entity list in prose, in more operational detail than a diagram usually carries.
-So I can author all four artefacts from the specification text, as Mermaid in
-`docs/00-overview/README.md`, and the build is not blocked. What is lost is **fidelity to the
-documents your committee has already seen**: if your sequence diagram shows a step in a different
-order, or your schema names a table I call something else, a reviewer comparing the two will find
-the difference and I would rather it not exist.
+So `docs/00-overview/README.md` recreates the committee's own diagrams in
+Mermaid rather than inventing equivalents, and step 05 maps the EERD's entities
+onto collections name by name. What they contain, read directly from the files:
 
-**What I recommend:** drop the four diagrams and the CSV into `reference/` (the folder is created
-and git-ignored for now) whenever you have them. If they arrive before step 05 nothing is wasted.
-If they never arrive, I author them from the specification and say so explicitly in
-`docs/00-overview/README.md` — an honest "recreated from the written specification, originals not
-available" is defensible; a silent mismatch is not.
+- **Sequence diagram** — Customer, System, Knowledge Base, Help Desk Agent.
+  Login → check maintenance contract → `alt` active / inactive (inactive ⇒
+  redirect to the Contact page) → describe problem → create ticket → query KB →
+  `alt` solution found / not found → suggest solution → confirm solved →
+  `alt` solved (generate report, update KB) / not solved (redirect to help desk)
+  → second frame: agent accesses the ticket, solves it, writes a report and adds
+  a KB record, ticket status → closed. This matches §1 of the specification step
+  for step; the specification adds OTP, SLA, attachments and voice on top.
+- **Use-case diagram** — actor `User` generalised into `Customer` and
+  `Employee`; the `«include»` chain runs Login → Check Contract → Describe
+  Problem → Create Ticket → Check KB → Suggest Solution → Check if Solved, with
+  `«extend»` to Redirect to Contact Page, Generate Report and Update KB, and
+  Redirect to Help Desk. Employee additionally owns Create/Update Maintenance
+  Contract, Update Ticket Status and Solve Problem.
+- **Level-1 DFD** — external entities Customer and admin; flows for login
+  credentials/verification, chat input and AI response, voice command and voice
+  response, save chat history, problem data and solution, ticket generation,
+  "problem with no solution" → send ticket → give a solution → update data;
+  stores for user data, chat history and call history. These are the trust
+  boundaries step 04's STRIDE analysis walks.
+- **EERD** — `Users` (ID, username, name, email, address, password, phoneNumber)
+  specialised into `Customer` and `Employee` (dateOfBirth, gender,
+  specializations); `contracts` (contractID, startDate, endDate, details) signed
+  N:1; `department` (depName, establishedDate, numberOfEmployee) with
+  belongs/managed_by; `ticket` (ticketID, startDate, endDate, status);
+  `problems` (problem_ID, category, description, update_date); `reports`
+  (report_ID, Title, solution_details, CreatedDate, solved_by);
+  `products_purchased` (productName); `logs` (logID, timeStamp,
+  interactionRefference). Step 05 keeps these names where they are clear and
+  records every rename with its reason, so a reviewer holding the EERD can
+  follow the mapping.
+
+One honest note for the defence: the EERD and class diagram are **December
+2024**, the sequence and use-case diagrams **April 2025**, and the written
+specification is newer than all of them. Where they disagree — the EERD has no
+OTP challenge, no SLA fields, no attachments, no KB versioning and no audit log
+— the specification wins and step 05 says so in a mapping table. Silently
+extending the schema would be the thing a committee catches.
 
 ### 1.3 `seniordata.csv` — not present, and it must not be committed on faith
 
@@ -64,6 +97,24 @@ Two separate problems, and the second one survives even if you hand me the file:
    real support tickets must never be published without auditable rights to publish anonymized
    derivatives. Your own scope section repeats this: no real personal data, confirm the licence
    before including any dataset.
+
+**Supplied 2026-10-23, and reading it confirms the decision.** `reference/data/seniordata.csv`
+holds **52 rows** with exactly the columns the specification lists, plus `LocationID`,
+`CallDurationSeconds`, `AgentID` and `CustomerID`. Two things matter for how it is handled:
+
+1. **It contains personal data in free text.** Agent and customer IDs are pseudonymous, but the
+   interaction text is not — it carries first names ("Jadav called to check his porting out
+   status"), gendered references and churn/complaint detail tied to an identifiable person. That is
+   personal data under `privacy-law.md`'s definition, and it is precisely what must never reach a
+   public repository.
+2. **The domain is Indian mobile telecom, not Lebanese IT support** — porting to Idea and BSNL,
+   data plans, national roaming. It is a perfectly good shape to validate the column mapping
+   against, and a poor source of knowledge-base content for this product.
+
+Both point the same way as the §9 decision: local-only input, never committed, never in a training
+split, with the importer flagging every row `Publishable: false`. Its value to the project is that
+step 05's importer is proved against the real file with the real column names, and the mapping the
+committee designed is demonstrated end to end.
 
 **Plan regardless of what you answer:** the repository ships a **project-owned synthetic seed KB**
 (generated by `tools/data-pipeline`, reviewed, licence-clean, committed, small) plus **download
@@ -362,11 +413,14 @@ and your GitHub publication checklist. **Then stop.**
 
 1. **Answers to the four questions** asked alongside this plan (code licence, `seniordata.csv`
    origin, demo-2FA approach, Redis).
-2. **Install Docker** (Docker Desktop + WSL2 integration is the simplest path) — blocks the end of
-   step 02. Also `nvm install 24`, `uv`, `jq`; step 02's README will list the exact commands.
-3. **Optional but recommended:** raise the WSL memory limit to 12 GB in `.wslconfig` so the ClamAV
-   and Ollama profiles can run alongside the core stack.
-4. **If they exist:** the four `/reference` diagrams and the normalized schema, into `reference/`.
+2. ~~**Install Docker**~~ **Done 2026-10-23** — Docker Desktop 29.9.2 with WSL
+   integration, Node 24.22.1, npm 11.19.1 and `uv` are all in place, and the
+   stack has been run (`docs/steps/02-foundation/README.md` §6.2).
+3. ~~**Optional but recommended:** raise the WSL memory limit to 12 GB.~~
+   **Not needed** — WSL now reports 9.7 GiB and the measured default stack is
+   ≈500 MiB, so both optional profiles fit as-is.
+4. ~~**If they exist:** the four `/reference` diagrams and the normalized schema, into `reference/`.~~
+   **Done 2026-10-23** — all five supplied and read (§1.2).
 5. **Start lining up people** for the human test set and the native-speaker review — the only two
    deliverables I cannot produce alone. Target: 200 written questions (≈40 per input form) and 2
    reviewers for the generated variants.
@@ -375,7 +429,9 @@ and your GitHub publication checklist. **Then stop.**
 
 Carried into the root README and kept current, not hidden:
 
-- `/reference` artefacts absent; diagrams and schema recreated from the written specification.
+- ~~`/reference` artefacts absent~~ — supplied 2026-10-23 (§1.2). The remaining
+  caveat is that they predate the written specification, so `docs/00-overview`
+  reproduces them as drawn and marks every place the specification extends them.
 - The `ml-training.md` research slot is filled by an adjacent report; Phase 7 relies on general
   practice for tracking, calibration, contrastive fine-tuning and promotion mechanics.
 - Human test set at 200 items gives wide per-input-form intervals; per-form comparisons are

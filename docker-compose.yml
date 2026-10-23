@@ -20,7 +20,7 @@ services:
   # ownership and 0400 permissions mongod insists on. Doing it here rather than
   # with a bind mount avoids the usual Windows/WSL file-ownership fight.
   mongo-keyfile:
-    image: mongo:8
+    image: mongo:8@sha256:0e900a3364da37b76d642b73b0bba56bd4c6c509ab470cf700436fd866bee3ff
     user: root
     command:
       - sh
@@ -39,7 +39,7 @@ services:
       - mongo-keyfile:/keyfile
 
   mongo:
-    image: mongo:8
+    image: mongo:8@sha256:0e900a3364da37b76d642b73b0bba56bd4c6c509ab470cf700436fd866bee3ff
     <<: *restart
     depends_on:
       mongo-keyfile:
@@ -60,7 +60,9 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD:?set MONGODB_ROOT_PASSWORD in .env}
     ports:
       # Localhost only: enough for MongoDB Compass, invisible to the network.
-      - '127.0.0.1:27017:27017'
+      # The host port is configurable because a native MongoDB install already
+      # owns 27017 on many machines; the container port never moves.
+      - '127.0.0.1:${MONGO_HOST_PORT:-27017}:27017'
     volumes:
       - mongo-data:/data/db
       - mongo-keyfile:/etc/mongo/keyfile:ro
@@ -74,7 +76,7 @@ services:
   # Initialises the replica set and creates the least-privilege application
   # user. Idempotent, so it is safe on every `up`.
   mongo-init:
-    image: mongo:8
+    image: mongo:8@sha256:0e900a3364da37b76d642b73b0bba56bd4c6c509ab470cf700436fd866bee3ff
     depends_on:
       mongo:
         condition: service_healthy
@@ -98,7 +100,7 @@ services:
 
   # ── Redis (BullMQ jobs, rate-limit counters, caches) ────────────────────────
   redis:
-    image: redis:8-alpine
+    image: redis:8-alpine@sha256:0bf6577d7774e592b29d093e3ac9390eb91e13d72c21e506afce736de5e0eeb0
     <<: *restart
     # appendonly: a restart must not lose scheduled SLA timers and reminders.
     # requirepass: Redis holds sessions and rate-limit state, so reaching the
@@ -131,7 +133,7 @@ services:
         required: true
     ports:
       # Localhost only. Service-to-service authentication is still required.
-      - '127.0.0.1:8000:8000'
+      - '127.0.0.1:${ML_HOST_PORT:-8000}:8000'
     healthcheck:
       test:
         - CMD
@@ -189,10 +191,22 @@ services:
       - client-node-modules:/app/node_modules
     expose:
       - '5173'
+    # Vite exits non-zero on a config error but npm restarts it, so "Up" alone
+    # does not mean the dev server is serving. This asks it for a page.
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:5173/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   # ── Reverse proxy: the only published port ──────────────────────────────────
   nginx:
-    image: nginx:alpine
+    image: nginx:alpine@sha256:a3554c0d0b48177b1413c26e01f695334428020d9df01243fbae3e11cfd17417
     <<: *restart
     depends_on:
       - server
@@ -211,7 +225,7 @@ services:
   # ~1.5-2 GB of RAM and a ~300 MB signature download on first start, which is
   # why it is opt-in. FILE_SCAN_PROVIDER=mock exercises the same interface.
   clamav:
-    image: clamav/clamav:1.5
+    image: clamav/clamav:1.5@sha256:e19130cdebaeacc71fa46eab3ed6f69941f2f22aa5e08d55e9197f8edf43ce5e
     profiles: ['scan']
     <<: *restart
     volumes:
@@ -227,7 +241,7 @@ services:
   # Needed only when LLM_PROVIDER=ollama. qwen3:4b is ~2.6 GB on disk and runs
   # on CPU; an 8B model wants ~6 GB and is far happier on the GPU.
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:latest@sha256:5c6707fcf2e1a30cffe2ecb7e315584fc87747c389327e4bc711c4959aa1eecc
     profiles: ['llm']
     <<: *restart
     volumes:

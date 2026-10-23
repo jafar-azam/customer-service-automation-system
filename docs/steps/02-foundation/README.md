@@ -1,8 +1,8 @@
 # Step 02 — Monorepo, tooling, Docker Compose, environment validation
 
-**Phase 1. Status: code complete and verified natively; the Compose stack is
-written but not yet started, because Docker was not running on this machine.
-See §7.**
+**Phase 1. Status: complete and verified. The Compose stack was started on
+2026-10-23, once Docker Desktop was running; §6.2 is measured output, not a
+plan, and §6.3 records the four defects that only appeared by running it.**
 
 ## Goal
 
@@ -243,45 +243,164 @@ All six were run and produced exactly that. There is nothing to inspect in
 MongoDB yet — the first collections appear in step 05, where this section starts
 describing what to look at in Compass.
 
-### 6.2 With Docker, once it is running
+### 6.2 With Docker — measured on 2026-10-23
 
 ```bash
 npm run up
-docker compose ps                      # every service healthy
-curl http://localhost:8080/api/version # through nginx
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8000/v1/version   # expect 401
-docker compose exec server whoami      # expect "node", not root
-docker compose exec ml whoami          # expect "mlsvc"
-npm run pin:images                     # rewrite image tags to sha256 digests
 ```
 
-MongoDB Compass connects to `mongodb://localhost:27017/?directConnection=true`
-with the **root** credentials from `.env`. The application user
-(`MONGODB_APP_USERNAME`) is intentionally limited to `readWrite` on `csas` and
-cannot browse other databases — if Compass shows you everything, you are
-connected as root, which is the point of having two users.
+From `docker compose down -v` (nothing but pulled images on disk) to a serving
+stack: **32 seconds**. `docker compose ps`:
+
+```
+SERVICE   STATUS
+client    Up (healthy)
+ml        Up (healthy)
+mongo     Up (healthy)
+nginx     Up (healthy)
+redis     Up (healthy)
+server    Up (healthy)
+```
+
+| # | Check | Result |
+| :-- | :-- | :-- |
+| 1 | `curl http://localhost:8080/api/version` (through nginx) | `200 {"name":"csas-server","version":"0.1.0","environment":"development"}` |
+| 2 | `curl http://localhost:8080/` | `200`, 697 bytes of `text/html` — the Vite client, same origin as the API |
+| 3 | `curl 127.0.0.1:8000/v1/version` with no token / a wrong token | `401` both times |
+| 4 | …with `Authorization: Bearer $ML_SERVICE_TOKEN` | `200 {"name":"csas-ml",…}` |
+| 5 | `docker compose exec server whoami` / `ml` / `client` | `node` / `mlsvc` / `node` — no container runs as root |
+| 6 | `docker compose port nginx 8080` / `mongo` / `ml` | `0.0.0.0:8080` / `127.0.0.1:27018` / `127.0.0.1:8000` — only the proxy is on a routable address |
+| 7 | `rs.status()` as root | `set=rs0 state=1 members=1` — primary, so transactions and change streams are available |
+| 8 | `connectionStatus` as the app user | `[{"role":"readWrite","db":"csas"}]` — nothing more |
+| 9 | App user reading `admin.system.users` | `MongoServerError: not authorized` |
+| 10 | Transaction started and aborted as the app user | succeeds — step 06 can commit a token rotation and its audit entry together |
+| 11 | `redis-cli ping` with no password | `NOAUTH Authentication required` |
+| 12 | `npm run pin:images` re-run | `0 file(s) changed` — pinning is idempotent |
+
+Resident memory for the whole default stack, `docker stats --no-stream`:
+
+| Service | Memory |
+| :-- | --: |
+| mongo | 233 MiB |
+| client (Vite dev server) | 187 MiB |
+| server | 30 MiB |
+| ml | 38 MiB |
+| redis | 6 MiB |
+| nginx | 7 MiB |
+| **total** | **≈ 500 MiB** |
+
+That is a fifth of the ~2.5 GB budgeted in step 01, which leaves real headroom
+for the opt-in ClamAV and Ollama profiles even at the default 9.7 GiB WSL
+allocation. The estimate was pessimistic; the measurement replaces it.
+
+MongoDB Compass connects to `mongodb://localhost:27018/?directConnection=true`
+(see §6.3.1 for why 27018 here and 27017 for most people) with the **root**
+credentials from `.env`. The application user (`MONGODB_APP_USERNAME`) is
+intentionally limited to `readWrite` on `csas` and cannot browse other
+databases — if Compass shows you everything, you are connected as root, which
+is the point of having two users.
+
+### 6.3 Four defects that only running it could find
+
+This is the argument for the rule that no step is done until the app has run.
+All four were invisible to lint, types, tests and a careful read.
+
+#### 6.3.1 The host port was not the project's to take
+
+`ports: 127.0.0.1:27017:27017` failed with `ports are not available … status: 500`.
+A native Windows `mongod.exe` service already owned 27017 — and it is a common
+thing for a developer's machine to have.
+
+Fix: the host side of both published ports is now configurable,
+`MONGO_HOST_PORT` and `ML_HOST_PORT` in `.env.example`, defaulting to the
+conventional values. The container-side ports never move, so no connection
+string inside the network changes. This machine runs MongoDB on **27018**.
+
+A hard-coded host port in a project whose headline promise is "clone and run"
+is a portability bug, not a local annoyance.
+
+#### 6.3.2 A non-root container that could not write where it had to
+
+The client crash-looped: `EACCES … vite.config.ts.timestamp-….mjs`. Vite bundles
+its TypeScript config to a sibling temp file at startup and caches dependency
+pre-bundles in `node_modules/.vite`; the image copied everything in as root and
+only then switched to `USER node`.
+
+The tempting fixes are both wrong: running the container as root defeats a
+control this project claims, and `chown -R /app` late in the build duplicates
+the entire `node_modules` layer. Instead `/app` is handed to `node` *before*
+`npm ci`, and every `COPY` in the client image carries `--chown=node:node`, so
+the tree is owned correctly from the first layer and nothing is duplicated.
+
+#### 6.3.3 nginx resolved its upstreams once and died
+
+Rebuilding only the client container took nginx down with
+`host not found in upstream "client:5173"`: nginx resolves every upstream name
+at startup and refuses to start if one is missing.
+
+Fix: Docker's embedded DNS (`resolver 127.0.0.11 valid=10s`) plus upstream
+addresses held in variables, which defers resolution to request time and
+re-resolves every 10 seconds. A contributor rebuilding one service no longer
+has to restart the proxy, and a container that comes back with a new IP is
+picked up on its own.
+
+#### 6.3.4 `pin-images` corrupted the tags it had already pinned
+
+Its second run reported `skipped ollama/ollama:lates` — a tag that does not
+exist. The reference pattern ended in `(?!@)`, and a regex engine simply
+backtracks one character to satisfy that: `…:latest@sha256:…` matched as
+`…:lates`. Had a registry answered for that name, the file would have been
+rewritten with a tag nothing could pull. A second bug hid behind it: the
+"is this a local build stage?" heuristic excluded `nginx:alpine` (no slash, no
+dot, no digit in the tag), so the one image a reviewer sees first was the one
+image left unpinned. A third appeared after the fix — a bare `=` prefix matched
+`COPY --chown=node:node`, reading a user and group as an image.
+
+Fix: the lookahead now rejects any continuation of the tag, the `=` branch is
+narrowed to `ARG NAME=`, the stage heuristic is gone (a build stage has no tag,
+so it cannot match), and the rewrite is a pure exported function covered by
+**9 tests** in `scripts/pin-images.test.mjs` — including "re-running is a
+no-op", which is the property that was broken.
+
+All eight registry references are now pinned by digest: `mongo:8`,
+`redis:8-alpine`, `nginx:alpine`, `clamav/clamav:1.5`, `ollama/ollama:latest`,
+`node:24.22.1-bookworm-slim`, `python:3.12-slim-bookworm`, `docker/dockerfile:1`.
+
+#### 6.3.5 One addition, not a defect
+
+The client container had no health check, so `docker compose ps` showed it as
+`Up` while Vite was crash-looping — npm restarted it faster than the status
+column could tell anyone. It now has one, and all six services report healthy.
 
 ## 7. What you must do
 
-1. **Start Docker Desktop** (it is installed; its WSL distro is currently
-   stopped) and enable **Settings → Resources → WSL Integration → Ubuntu**.
-   Then `docker --version` answers in this shell and §6.2 can run. **Step 02 is
-   not finished until that passes** — the plan's rule is that no step is done
-   without running the app.
-2. Optionally raise the WSL memory limit to 12 GB in `C:\Users\<you>\.wslconfig`
-   before enabling the `scan` (ClamAV) or `llm` (Ollama) profiles.
-3. Nothing else. No accounts, no keys, no paid services.
+1. **Nothing is outstanding.** Docker Desktop is running with WSL integration
+   enabled, and the whole stack was started, exercised and torn down (§6.2).
+2. Raising the WSL memory limit is **no longer necessary**: the default stack
+   measures ≈500 MiB against a 9.7 GiB allocation, so the `scan` (ClamAV, ~2 GB)
+   and `llm` (Ollama, ~3–6 GB) profiles both fit as they are.
+3. If you ever stop the Windows `mongod` service, you can drop
+   `MONGO_HOST_PORT` from `.env` and MongoDB returns to 27017. Leaving it set
+   costs nothing.
+4. No accounts, no keys, no paid services.
 
 ## 8. Test results
 
+Re-run on 2026-10-23 after the §6.3 fixes:
+
 ```
-Node:   6 test files, 94 tests passed          (vitest run)
-        Statements 94.89%  Branches 87.75%  Functions 100%  Lines 96.8%
+Node:   7 test files, 104 tests passed         (vitest run)
 Python: 15 tests passed                        (pytest -q)
 Lint:   eslint clean; ruff clean; ruff format clean; mypy clean (6 files)
-Build:  tsc -b clean across 4 projects
+Build:  tsc -b clean across 4 projects; client bundle 220.6 kB / 69.0 kB gzipped
 Secret scan: clean (tracked files, and 18 blobs across full git history)
+Stack:  6/6 services healthy; 12/12 runtime checks in §6.2 passed
 ```
+
+The ten new tests are `scripts/pin-images.test.mjs` (9) and the client health
+check is covered by the stack run rather than by a unit test. The 69 kB gzipped
+bundle is the Vite starter, not a budget measurement — the ≤120 kB public-page
+budget is enforced from step 32, against real pages.
 
 ## 9. Checklist
 
@@ -304,5 +423,10 @@ Secret scan: clean (tracked files, and 18 blobs across full git history)
       smoke test — no secrets required
 - [x] CodeQL and Dependabot configured
 - [x] Tests pass, coverage above threshold, app runs and was exercised
-- [ ] **`docker compose up` verified** — blocked on Docker Desktop (§7.1)
-- [ ] **Image digests pinned** — `npm run pin:images`, needs Docker
+- [x] **`docker compose up` verified** — 6/6 services healthy from a clean
+      `down -v` in 32 s; 12 runtime checks in §6.2
+- [x] **Image digests pinned** — all 8 registry references, idempotently
+- [x] Host ports made configurable after a real collision (§6.3.1)
+- [x] Client container runs non-root *and* works (§6.3.2)
+- [x] Proxy survives a single-service rebuild (§6.3.3)
+- [x] `pin-images` regression-tested (§6.3.4)

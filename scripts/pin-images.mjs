@@ -15,6 +15,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 
 const FILES = [
   'docker-compose.yml',
@@ -23,8 +24,41 @@ const FILES = [
   'apps/ml/Dockerfile',
 ];
 
-/** `image: foo:1.2` / `ARG X=foo:1.2` / `FROM foo:1.2`, digest not yet applied. */
-const REFERENCE = /((?:image:\s*|FROM\s+|=)\s*)([a-z0-9][a-z0-9._/-]*:[A-Za-z0-9._-]+)(?!@)/g;
+/**
+ * `image: foo:1.2` / `ARG X=foo:1.2` / `FROM foo:1.2`, digest not yet applied.
+ *
+ * The trailing lookahead rejects *any* continuation of the tag, not just `@`.
+ * `(?!@)` alone is not enough: the engine simply backtracks the tag one
+ * character short, so `ollama/ollama:latest@sha256:...` matches as
+ * `ollama/ollama:lates` and the file is rewritten with a corrupted tag. That
+ * bug shipped once; `pin-images.test.mjs` is what keeps it from shipping twice.
+ *
+ * A local build stage (`FROM deps AS build`) carries no tag, so it cannot match.
+ * The `=` branch is narrowed to `ARG NAME=` for the same class of reason: a
+ * bare `=` also matches `COPY --chown=node:node`, which is a user and a group,
+ * not an image.
+ */
+export const REFERENCE =
+  /((?:image:\s*|FROM\s+|\bARG\s+[A-Za-z_][A-Za-z0-9_]*=)\s*)([a-z0-9][a-z0-9._/-]*:[A-Za-z0-9._-]+)(?![A-Za-z0-9._@-])/g;
+
+/**
+ * Rewrites every registry reference in `text` to `tag@sha256:...`, asking
+ * `resolve(reference)` for each digest. Separated from file and Docker access
+ * so the rewrite rules can be tested without either.
+ */
+export function pinReferences(text, resolve, onSkip = () => {}) {
+  const resolved = new Map();
+  const updated = text.replace(REFERENCE, (match, prefix, reference) => {
+    try {
+      if (!resolved.has(reference)) resolved.set(reference, resolve(reference));
+      return `${prefix}${reference}@${resolved.get(reference)}`;
+    } catch (error) {
+      onSkip(reference, error);
+      return match;
+    }
+  });
+  return { text: updated, resolved };
+}
 
 function digestOf(reference) {
   const output = execFileSync(
@@ -48,24 +82,18 @@ function main() {
     return;
   }
 
-  const resolved = new Map();
+  const cache = new Map();
+  const resolve = (reference) => {
+    if (!cache.has(reference)) cache.set(reference, digestOf(reference));
+    return cache.get(reference);
+  };
+  const onSkip = (reference, error) =>
+    console.warn(`pin-images: skipped ${reference} — ${error.message}`);
   let changed = 0;
 
   for (const file of FILES) {
     const original = readFileSync(file, 'utf8');
-    const updated = original.replace(REFERENCE, (match, prefix, reference) => {
-      /* Local build stages (`FROM deps AS build`) are not registry images. */
-      if (!reference.includes('/') && !reference.includes('.') && !/:\d/.test(reference)) {
-        return match;
-      }
-      try {
-        if (!resolved.has(reference)) resolved.set(reference, digestOf(reference));
-        return `${prefix}${reference}@${resolved.get(reference)}`;
-      } catch (error) {
-        console.warn(`pin-images: skipped ${reference} — ${error.message}`);
-        return match;
-      }
-    });
+    const { text: updated } = pinReferences(original, resolve, onSkip);
 
     if (updated !== original) {
       writeFileSync(file, updated);
@@ -74,8 +102,9 @@ function main() {
     }
   }
 
-  for (const [reference, digest] of resolved) console.log(`  ${reference} -> ${digest}`);
+  for (const [reference, digest] of cache) console.log(`  ${reference} -> ${digest}`);
   console.log(`pin-images: ${String(changed)} file(s) changed`);
 }
 
-main();
+/* Importable for tests; only the CLI invocation runs main(). */
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

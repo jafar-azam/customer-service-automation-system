@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1
+# syntax=docker/dockerfile:1@sha256:4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e
 #
 # Server image. Four stages so the runtime layer contains no compiler, no dev
 # dependency and no source: a smaller image, and a smaller attack surface.
@@ -7,7 +7,7 @@
 # these lines with the resolved sha256 digests, which is the stronger form of
 # pinning (a tag can be re-pushed, a digest cannot).
 
-ARG NODE_IMAGE=node:24.22.1-bookworm-slim
+ARG NODE_IMAGE=node:24.22.1-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205
 
 # ── Dependencies (including dev, needed to compile TypeScript) ────────────────
 FROM ${NODE_IMAGE} AS deps
