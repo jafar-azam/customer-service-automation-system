@@ -1,5 +1,10 @@
 import { createApp } from './app.js';
 import { EnvValidationError, getEnv } from './config/env.js';
+import {
+  connectToDatabase,
+  createMongoHealthCheck,
+  disconnectFromDatabase,
+} from './db/connection.js';
 import { DisabledErrorTracker, LoggingErrorTracker } from './observability/error-tracking.js';
 import { createLogger } from './observability/logger.js';
 import { createMlHealthCheck } from './observability/dependencies.js';
@@ -29,11 +34,20 @@ function main(): void {
 
   const app = createApp({ env, version: VERSION, logger, errorTracker, startedAt });
 
-  /* The ML service is registered as a *non-critical* dependency: the assistant
+  /* MongoDB is **critical**: without it nothing works, so a failing probe takes
+     this instance out of rotation. The ML service is **not** — the assistant
      degrades to keyword search and escalation without it (step 18), so its
-     absence must not take this instance out of rotation. MongoDB and Redis join
-     the registry as critical checks in steps 05 and 14. */
+     absence must not stop traffic this server can still serve. Redis joins as a
+     critical check in step 14. */
+  app.health.register(createMongoHealthCheck());
   app.health.register(createMlHealthCheck(env.ML_SERVICE_URL));
+
+  /* The connection is started but not awaited: the server must come up and
+     answer /api/health even when the database is down, so that readiness can
+     report *why* rather than the process simply failing to boot. */
+  void connectToDatabase({ uri: env.MONGODB_URI, logger }).catch((error: unknown) => {
+    logger.error({ err: error }, 'initial mongodb connection failed; readiness will report it');
+  });
 
   const server = app.express.listen(env.PORT, () => {
     logger.info(
@@ -68,8 +82,12 @@ function main(): void {
     timer.unref();
 
     server.close(() => {
-      logger.info('shutdown complete');
-      process.exit(0);
+      void disconnectFromDatabase()
+        .catch(() => undefined)
+        .finally(() => {
+          logger.info('shutdown complete');
+          process.exit(0);
+        });
     });
   };
   process.on('SIGTERM', () => {

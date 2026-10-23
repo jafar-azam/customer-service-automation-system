@@ -74,6 +74,15 @@ export const envSchema = z.object({
   CORS_ORIGINS: z.string().min(1),
 
   MONGODB_URI: z.string().regex(/^mongodb(\+srv)?:\/\//, 'must be a mongodb:// connection string'),
+  /* Schema work only — the seed and future migrations. The server process never
+     uses it, so the running application cannot alter a validator or drop an
+     index even if it is compromised. Optional: when it is unset the seed falls
+     back to MONGODB_URI, which is what the in-memory test database and a
+     single-user local setup need. */
+  MONGODB_MIGRATION_URI: z
+    .string()
+    .regex(/^mongodb(\+srv)?:\/\//, 'must be a mongodb:// connection string')
+    .optional(),
   REDIS_URL: z.string().regex(/^rediss?:\/\//, 'must be a redis:// connection string'),
 
   ACCESS_TOKEN_SECRET: secret,
@@ -106,6 +115,13 @@ export const envSchema = z.object({
   CLAMAV_HOST: z.string().min(1).default('clamav'),
   CLAMAV_PORT: port.default(3310),
   STORAGE_ROOT: z.string().min(1).default('/var/lib/csas/storage'),
+
+  /* Where the seed importers read from. Both are git-ignored paths: the
+     TechQA corpus is 12 GB and fetched by the contributor, and the senior-data
+     CSV is real business data that may never be committed. Paths rather than
+     constants so a contributor can keep the corpus anywhere. */
+  TECHQA_PATH: z.string().min(1).default('data/external/techqa'),
+  SENIORDATA_PATH: z.string().min(1).default('reference/data/seniordata.csv'),
 
   ERROR_TRACKING_DSN: z.string().default(''),
   METRICS_ENABLED: boolish.default(true),

@@ -20,8 +20,8 @@ reports anything that does not hold.
 L2 · A0x = OWASP Top 10 2021 · API0x = OWASP API Security Top 10 2023 ·
 LLM0x = OWASP Top 10 for LLM Applications 2025.
 
-Counts as of step 04, re-derived from the table by `npm run audit:checklist`
-rather than written by hand: **18 done, 69 planned, 1 accepted**. (The numbered
+Counts as of step 05, re-derived from the table by `npm run audit:checklist`
+rather than written by hand: **29 done, 69 planned, 1 accepted**. (The numbered
 rows count one `accepted`; the five further acceptances have no requirement id
 because they are infrastructure decisions, and are listed at the end.)
 
@@ -155,30 +155,46 @@ because they are infrastructure decisions, and are listed at the end.)
 | 11.4 | Internal errors leak nothing but a request id | ASVS 7.4, A09 | Bare 500 plus id | `http/errors.ts` | "leaking nothing" | **done** |
 | 11.5 | Append-only audit log for security-relevant events | ASVS 7.2 | Insert-only collection, no update path | `services/audit` | update attempt rejected | step 06 |
 | 11.6 | Audit covers logins, recovery, roles, KB, models, exports, deletions, contracts | ASVS 7.2 | Event taxonomy | `services/audit` | one test per event type | step 06–31 |
-| 11.7 | Phone numbers encrypted at rest with a hashed lookup index | — | AES-256-GCM + peppered hash | `repositories/customers` | stored document holds no plaintext number | step 05 |
+| 11.7 | Phone numbers encrypted at rest with a hashed lookup index | — | AES-256-GCM + peppered HMAC; login never decrypts | `crypto/phone.ts` | 28 tests incl. "stores demo phone numbers encrypted and hashed, never in the clear" | **done** |
 | 11.8 | Retention periods enforced per category | — | Scheduled sweeps | `jobs/retention` | record deleted after its period | step 14 |
 | 11.9 | Admin-triggered export and deletion of a customer's data | — | Including removal from future training data | `services/privacy` | exported bundle complete; deleted record not exportable | step 29 |
 | 11.10 | Consent for recording and for AI training, with opt-out | — | Separate, unchecked by default, versioned | `services/consent` | no consent → no capture, no export | step 28, 27 |
 
-## 12. Availability and abuse
+## 12. The data layer
 
 | # | Requirement | Std | Control | Code | Test | Status |
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-| 12.1 | Rate limits on all routes, strict on sensitive ones | API04 | Redis-backed limiter | `http/rate-limit` | limit enforced; headers correct | step 08 |
-| 12.2 | Bot protection on the contact form | — | Challenge plus honeypot | `routes/contact` | automated submission refused | step 32 |
-| 12.3 | Metric labels bounded | — | Route pattern or `unmatched` | `observability/metrics.ts` | "collapses unmatched paths" | **done** |
-| 12.4 | Jobs idempotent and bounded | — | Idempotency keys, dead-letter queue | `jobs/*` | duplicate job runs once | step 14 |
+| 12.1 | Database-level schema validation, not only ORM validation | ASVS 5.1 | `$jsonSchema` validators applied by the seed | `db/validators.ts` | three validator tests that bypass Mongoose entirely | **done** |
+| 12.2 | Unknown fields rejected, never silently dropped | API06 | `strict: 'throw'` on every schema | `db/models/shared.ts` | "are rejected rather than silently dropped" | **done** |
+| 12.3 | **The application cannot alter the schema or drop an index** | A01 | Separate migration identity with `dbAdmin`; the server holds `readWrite` only | `infra/mongo/init-replica-set.js` | verified live: the app user is refused `collMod` | **done** |
+| 12.4 | Credentials and personal data not returned by default | ASVS 8.1 | `select: false` on hashes, secrets and the encrypted phone | `db/models/*` | three "sensitive fields" tests | **done** |
+| 12.5 | Retention enforced by the database, not only by a job | — | TTL indexes on sessions, OTP challenges, reset tokens | `db/models/governance.ts` | "are declared on sessions, OTP challenges and reset tokens" | **done** |
+| 12.6 | Unpublishable data can never be retrieved by the assistant | — | Imported as `pending_review`; retrieval reads approved only | `seed/seniordata.ts` | "never leaves an unpublishable row retrievable by the assistant" | **done** |
+| 12.7 | The seed never deletes, and never re-applies a changed password | — | Upserts and create-if-absent only | `seed/seed.ts` | "is idempotent and never re-applies the seed password" | **done** |
+| 12.8 | A model artefact format that executes code on load cannot be recorded | LLM03 | Enumeration limited to safetensors and ONNX | `db/models/governance.ts` | "refuse a pickle model artefact" | **done** |
+| 12.9 | Multi-collection invariants commit atomically | — | Single-node replica set; transactions available | `db/connection.ts` | "commit several collections together, or not at all" | **done** |
 
-## 13. Supply chain
+## 13. Availability and abuse
 
 | # | Requirement | Std | Control | Code | Test | Status |
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-| 13.1 | Lockfiles committed | A06 | `package-lock.json`, `uv.lock` | repo | `npm ci` in CI | **done** |
-| 13.2 | `npm audit` and `pip-audit` fail on high/critical | A06 | CI job | `.github/workflows/ci.yml` | audit job; 0 vulnerabilities today | **done** |
-| 13.3 | Dependabot and CodeQL enabled | A06 | Config committed | `.github/` | runs on GitHub — **unproven until the repository is pushed** | step 37 |
-| 13.4 | Docker base images pinned by digest | A08 | `npm run pin:images` | Dockerfiles, compose | 9 pin-images tests; all 8 references pinned | **done** |
-| 13.5 | Containers run as non-root | A05 | `node`, `mlsvc` | Dockerfiles | verified live: `whoami` per container | **done** |
-| 13.6 | Third-party licence report | — | Generated at release | `docs/` | report produced and reviewed | step 37 |
+| 13.1 | Rate limits on all routes, strict on sensitive ones | API04 | Redis-backed limiter | `http/rate-limit` | limit enforced; headers correct | step 08 |
+| 13.2 | Bot protection on the contact form | — | Challenge plus honeypot | `routes/contact` | automated submission refused | step 32 |
+| 13.3 | Metric labels bounded | — | Route pattern or `unmatched` | `observability/metrics.ts` | "collapses unmatched paths" | **done** |
+| 13.4 | Jobs idempotent and bounded | — | Idempotency keys, dead-letter queue | `jobs/*` | duplicate job runs once | step 14 |
+| 13.5 | Notifications are idempotent | — | Unique `idempotencyKey` per message | `db/models/governance.ts` | unique index enforced | step 31 |
+
+## 14. Supply chain
+
+| # | Requirement | Std | Control | Code | Test | Status |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| 14.1 | Lockfiles committed | A06 | `package-lock.json`, `uv.lock` | repo | `npm ci` in CI | **done** |
+| 14.2 | `npm audit` and `pip-audit` fail on high/critical | A06 | CI job | `.github/workflows/ci.yml` | audit job; 0 vulnerabilities today | **done** |
+| 14.3 | Dependabot and CodeQL enabled | A06 | Config committed | `.github/` | runs on GitHub — **unproven until the repository is pushed** | step 37 |
+| 14.4 | Docker base images pinned by digest | A08 | `npm run pin:images` | Dockerfiles, compose | 9 pin-images tests; all 8 references pinned | **done** |
+| 14.5 | Containers run as non-root | A05 | `node`, `mlsvc` | Dockerfiles | verified live: `whoami` per container | **done** |
+| 14.6 | Third-party licence report | — | Generated at release | `docs/` | report produced and reviewed | step 37 |
+| 14.7 | Every dataset record carries its licence and publishability | — | `provenance` required on knowledge and dataset records | `db/models/knowledge.ts` | import tests assert licence, publishability and lineage | **done** |
 
 ---
 

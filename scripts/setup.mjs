@@ -31,6 +31,7 @@ export function base32(length) {
 
 export function generateSecrets() {
   const mongoAppPassword = hex(24);
+  const mongoMigrationPassword = hex(24);
   const redisPassword = hex(24);
   const db = 'csas';
   return {
@@ -43,6 +44,9 @@ export function generateSecrets() {
     MONGODB_ROOT_PASSWORD: hex(24),
     MONGODB_APP_PASSWORD: mongoAppPassword,
     MONGODB_URI: `mongodb://csas_app:${mongoAppPassword}@mongo:27017/${db}?replicaSet=rs0&authSource=${db}`,
+    MONGODB_MIGRATION_PASSWORD: mongoMigrationPassword,
+    /* Schema work only, and never loaded by the server process. */
+    MONGODB_MIGRATION_URI: `mongodb://csas_migrator:${mongoMigrationPassword}@mongo:27017/${db}?replicaSet=rs0&authSource=${db}`,
     REDIS_PASSWORD: redisPassword,
     REDIS_URL: `redis://:${redisPassword}@redis:6379`,
     SEED_ADMIN_EMAIL: 'admin@csas.local',

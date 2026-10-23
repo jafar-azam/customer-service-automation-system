@@ -36,6 +36,7 @@
     "logs": "docker compose logs -f --tail=100",
     "verify": "npm run format:check && npm run lint && npm run build && npm run secrets:scan && npm run audit:checklist && npm run test",
     "setup": "node scripts/setup.mjs",
+    "seed": "npm run build -w @csas/shared && npm run build -w @csas/server && npm run seed -w @csas/server",
     "pin:images": "node scripts/pin-images.mjs",
     "test:ml": "cd apps/ml && uv run pytest -q",
     "lint:ml": "cd apps/ml && uv run ruff check . && uv run ruff format --check . && uv run mypy app tests"
