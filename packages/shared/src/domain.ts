@@ -229,6 +229,13 @@ export const AUDIT_ACTIONS = [
   'contract.created',
   'contract.updated',
   'contract.expired',
+  'ticket.created',
+  'ticket.assigned',
+  /* One action for every move, with `from` and `to` in the metadata. The
+     three named transitions below stay as their own actions because they are
+     what a reviewer and the Phase 8 alert rules actually ask about — "show me
+     every escalation" should not require parsing metadata. */
+  'ticket.status_changed',
   'ticket.escalated',
   'ticket.resolved',
   'ticket.reopened',

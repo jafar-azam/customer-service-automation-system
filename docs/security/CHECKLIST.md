@@ -21,7 +21,7 @@ L2 · A0x = OWASP Top 10 2021 · API0x = OWASP API Security Top 10 2023 ·
 LLM0x = OWASP Top 10 for LLM Applications 2025.
 
 Counts as of step 08, re-derived from the table by `npm run audit:checklist`
-rather than written by hand: **73 done, 45 planned, 1 accepted**. (The numbered
+rather than written by hand: **74 done, 44 planned, 1 accepted**. (The numbered
 rows count one `accepted`; the five further acceptances have no requirement id
 because they are infrastructure decisions, and are listed at the end.)
 
@@ -180,7 +180,7 @@ because they are infrastructure decisions, and are listed at the end.)
 
 | # | Requirement | Std | Control | Code | Test | Status |
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-| 13.1 | Rate limits on all routes, strict on sensitive ones | API04 | Redis limiter, wired into the OTP endpoints; other routes still to follow | `services/rate-limit.ts` | 16 limiter tests; `Retry-After` verified live | step 11 |
+| 13.1 | Rate limits on all routes, strict on sensitive ones | API04 | Redis limiter: strict per-number/IP/prefix layers on OTP, an ordinary per-account layer on the ticket routes. Keyed on the authenticated actor, so one office NAT is not one budget and a changed address does not buy a fresh quota | `services/rate-limit.ts`, `http/rate-limit-middleware.ts` | 16 limiter tests; flood refused with `Retry-After`; limit charged per account not per address | **done** |
 | 13.2 | Bot protection on the contact form | — | Challenge plus honeypot | `routes/contact` | automated submission refused | step 32 |
 | 13.3 | Metric labels bounded | — | Route pattern or `unmatched` | `observability/metrics.ts` | "collapses unmatched paths" | **done** |
 | 13.4 | Jobs idempotent and bounded | — | Idempotency keys, dead-letter queue | `jobs/*` | duplicate job runs once | step 14 |

@@ -9,6 +9,8 @@ import { HealthRegistry } from './observability/health.js';
 import { createMetrics, type Metrics } from './observability/metrics.js';
 import { authRouter } from './routes/auth.js';
 import { customerAuthRouter } from './routes/customer-auth.js';
+import { ticketRouter } from './routes/tickets.js';
+import { NullTicketEvents, type TicketEvents } from './realtime/events.js';
 import { healthRouter } from './routes/health.js';
 import { metricsRouter } from './routes/metrics.js';
 import { versionRouter } from './routes/version.js';
@@ -22,6 +24,8 @@ export interface AppOptions {
   readonly health?: HealthRegistry;
   readonly errorTracker?: ErrorTracker;
   readonly startedAt?: number;
+  /** Where real-time announcements go. Defaults to a no-op. */
+  readonly events?: TicketEvents;
 }
 
 export interface App {
@@ -46,6 +50,9 @@ export function createApp({
   health = new HealthRegistry(),
   errorTracker = new DisabledErrorTracker(),
   startedAt = Date.now(),
+  /* Defaults to a no-op recorder so a route test needs no server, no port and
+     no transport. `index.ts` passes the Socket.IO implementation. */
+  events = new NullTicketEvents(),
 }: AppOptions): App {
   const app = express();
 
@@ -80,6 +87,12 @@ export function createApp({
      must never fall through to a staff route. */
   app.use('/api/auth/customer', customerAuthRouter({ env, logger }));
   app.use('/api/auth', authRouter({ env, logger }));
+
+  /* One router, mounted twice with a different guard. What differs between
+     the two audiences is carried entirely by the scope the handler builds
+     from the authenticated actor — see routes/tickets.ts. */
+  app.use('/api/customer/tickets', ticketRouter({ env, logger, events, audience: 'customer' }));
+  app.use('/api/tickets', ticketRouter({ env, logger, events, audience: 'staff' }));
 
   app.use(notFoundHandler);
   app.use(createErrorHandler({ logger, metrics, errorTracker }));

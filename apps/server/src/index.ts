@@ -1,4 +1,7 @@
+import { createServer } from 'node:http';
 import { createApp } from './app.js';
+import { createRealtime } from './realtime/socket.js';
+import { DeferredTicketEvents } from './realtime/events.js';
 import { EnvValidationError, getEnv } from './config/env.js';
 import {
   connectToDatabase,
@@ -33,7 +36,22 @@ function main(): void {
     ? new LoggingErrorTracker(logger)
     : new DisabledErrorTracker();
 
-  const app = createApp({ env, version: VERSION, logger, errorTracker, startedAt });
+  /* The HTTP server is created explicitly rather than by `app.listen`, because
+     Socket.IO attaches to it — and that makes the dependency a cycle: sockets
+     need the server, the server needs the app, the app's routers need
+     somewhere to announce. The deferred recorder is where the cycle is cut. */
+  const deferredEvents = new DeferredTicketEvents();
+  const app = createApp({
+    env,
+    version: VERSION,
+    logger,
+    errorTracker,
+    startedAt,
+    events: deferredEvents,
+  });
+  const httpServer = createServer(app.express);
+  const { io, events } = createRealtime({ env, logger, httpServer });
+  deferredEvents.bind(events);
 
   /* MongoDB is **critical**: without it nothing works, so a failing probe takes
      this instance out of rotation. The ML service is **not** — the assistant
@@ -56,7 +74,7 @@ function main(): void {
     logger.error({ err: error }, 'initial mongodb connection failed; readiness will report it');
   });
 
-  const server = app.express.listen(env.PORT, () => {
+  const server = httpServer.listen(env.PORT, () => {
     logger.info(
       {
         version: VERSION,
@@ -66,6 +84,7 @@ function main(): void {
         demoMode: env.DEMO_MODE,
         errorTracking: errorTracker.enabled,
         healthChecks: app.health.names(),
+        realtime: '/api/socket.io',
       },
       'csas-server listening',
     );
@@ -87,6 +106,11 @@ function main(): void {
       process.exit(1);
     }, SHUTDOWN_TIMEOUT_MS);
     timer.unref();
+
+    /* Sockets first. `server.close` waits for connections to end, and a
+       websocket never ends on its own — without this the shutdown always hits
+       the forced-exit timer and reports an unclean stop. */
+    void io.close();
 
     server.close(() => {
       void Promise.all([disconnectFromDatabase(), disconnectFromRedis()])
