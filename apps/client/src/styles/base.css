@@ -1,0 +1,172 @@
+/* Element defaults and the rules that are global by nature: direction,
+   typography, focus and motion. Component styles live with their components.
+
+   Every directional declaration here is a logical property (CSS-01). The only
+   way the Arabic layout can be wrong is if the whole layout is wrong, which is
+   the point — a separate RTL stylesheet drifts within a month. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  /* The viewer may have set a larger base size. Never override it. */
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-canvas);
+  color: var(--color-text);
+  font-family: var(--font-latin);
+  font-size: var(--text-base);
+  line-height: var(--leading-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Arabic ──────────────────────────────────────────────────────────────
+   Keyed on `:lang(ar)`, not on `[dir='rtl']`. They coincide today and would
+   stop coinciding the moment an Arabic quotation appears in the English
+   interface — which it does, in the conversation. The selector matches
+   `ar-LB` as well; that is how `:lang()` is defined. */
+
+:lang(ar) {
+  font-family: var(--font-arabic);
+
+  /* TYPE-01. Letter-spacing breaks the joining behaviour Arabic script
+     depends on, and `text-transform` means nothing in Arabic while still
+     mangling Latin embedded in an Arabic string. Both are switched off here
+     rather than removed from the Latin rules that want them. */
+  letter-spacing: normal;
+  text-transform: none;
+
+  /* Never fake a weight. A missing face should be visible, not smeared — on
+     Arabic a synthetic bold destroys letterforms rather than thickening them. */
+  font-synthesis: none;
+
+  /* IBM Plex Mono has no Arabic coverage, so Arabic inside a monospace rule
+     falls back to whatever the system supplies and comes apart at the joins.
+     The mono rules are right about intent, so the variable they read is
+     repointed instead of being stripped. Latin-only tokens opt back in. */
+  --font-mono: var(--font-arabic);
+}
+
+/* ── Identifiers ─────────────────────────────────────────────────────────
+   BIDI-02. A ticket reference, phone number, email or URL is an isolated LTR
+   token wherever it appears. Isolated rather than merely direction-set, so the
+   bidi algorithm cannot carry surrounding Arabic punctuation across its edges
+   and change what the reader sees. `<bdi>` isolates on its own; this backs it
+   up for anything that is only given the class. */
+
+.identifier {
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Headings and text ──────────────────────────────────────────────────── */
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  font-weight: var(--weight-strong);
+  line-height: var(--leading-tight);
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: var(--text-3xl);
+}
+h2 {
+  font-size: var(--text-xl);
+}
+h3 {
+  font-size: var(--text-lg);
+}
+
+p {
+  margin: 0;
+  /* Measure, not width: a line longer than this is measurably harder to
+     return from at the start of the next line. */
+  max-width: 68ch;
+}
+
+a {
+  color: var(--color-accent);
+  text-underline-offset: 0.2em;
+}
+
+/* ── Focus ───────────────────────────────────────────────────────────────
+   `:focus-visible`, so a mouse click does not draw a ring but a keyboard tab
+   does. Never removed: the ring is the only thing telling a keyboard user
+   where they are, and its colour is contrast-checked against the page. */
+
+:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset);
+  border-radius: var(--radius);
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ── Motion ──────────────────────────────────────────────────────────────
+   Opacity, colour and at most a 1px nudge, at 160ms. No keyframes anywhere in
+   this application. Under `prefers-reduced-motion` everything stops — including
+   smooth scrolling, which is the one people forget and the one that actually
+   causes nausea. */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Utilities ───────────────────────────────────────────────────────────── */
+
+/* Available to a screen reader, invisible on screen. Not `display: none`,
+   which removes it from the accessibility tree as well. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The first thing a keyboard user meets. Hidden until focused. */
+.skip-link {
+  position: absolute;
+  inset-block-start: var(--space-1);
+  inset-inline-start: var(--space-1);
+  z-index: 10;
+  padding: var(--space-1) var(--space-2);
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius);
+  transform: translateY(-200%);
+}
+
+.skip-link:focus {
+  transform: none;
+}

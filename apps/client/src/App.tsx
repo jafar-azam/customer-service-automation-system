@@ -1,4 +1,27 @@
+import {
+  formatCountdown,
+  formatDate,
+  formatNumber,
+  LOCALES,
+  type Locale,
+  type FormatPreferences,
+} from '@csas/shared';
 import { useEffect, useState, type JSX } from 'react';
+import { useTranslation } from 'react-i18next';
+import {
+  Button,
+  Callout,
+  Card,
+  Field,
+  Identifier,
+  SegmentedControl,
+  Tag,
+} from './components/index.js';
+import { AlertIcon, ClockIcon, SendIcon } from './components/icons.js';
+import { useLocale } from './locale-context.js';
+import { styles } from './components/styles.js';
+import { THEMES, useTheme, type Theme } from './theme.js';
+import { appStyles } from './app-styles.js';
 
 interface VersionInfo {
   name: string;
@@ -6,58 +29,192 @@ interface VersionInfo {
   environment: string;
 }
 
-type State =
+type ApiState =
   | { status: 'loading' }
   | { status: 'ready'; info: VersionInfo }
   | { status: 'error'; code: string };
 
-/**
- * Step 02's client is deliberately unstyled. The visual language is chosen in
- * step 09 (three directions, one of them picked) and implemented as tokens in
- * step 10; anything decorative written now would have to be thrown away, and
- * would quietly become the design by default.
- *
- * What it does prove is that the client can reach the API through the reverse
- * proxy and render its answer.
- */
-export function App(): JSX.Element {
-  const [state, setState] = useState<State>({ status: 'loading' });
+/* Demonstration rows. Invented, not drawn from `reference/` — no real customer
+   name, ticket or sentence appears anywhere in this repository. */
+const ROWS = [
+  { reference: 'CSAS-001241', customer: 'Cedar Pharmaceuticals', minutes: 12, tone: 'warning' },
+  { reference: 'CSAS-001240', customer: 'Beirut Logistics', minutes: -40, tone: 'danger' },
+  { reference: 'CSAS-001238', customer: 'Tripoli Textiles', minutes: 400, tone: 'neutral' },
+] as const;
+
+function Settings(): JSX.Element {
+  const { locale, setLocale } = useLocale();
+  const { theme, setTheme } = useTheme();
+  const { t } = useTranslation();
+
+  const themeLabels: Record<Theme, string> = {
+    system: t('settings.themeSystem'),
+    light: t('settings.themeLight'),
+    dark: t('settings.themeDark'),
+  };
+
+  return (
+    <div className={appStyles.settings}>
+      <SegmentedControl<Locale>
+        label={t('settings.language')}
+        value={locale}
+        /* The name of a language is written in that language. "Arabic" in an
+           English list is no use to someone who only reads Arabic — which is
+           exactly the person who needs the switch. */
+        options={LOCALES.map((value) => ({
+          value,
+          label: value === 'ar-LB' ? 'العربية' : 'English',
+        }))}
+        onChange={setLocale}
+      />
+      <SegmentedControl<Theme>
+        label={t('settings.theme')}
+        value={theme}
+        options={THEMES.map((value) => ({ value, label: themeLabels[value] }))}
+        onChange={setTheme}
+      />
+    </div>
+  );
+}
+
+function ApiStatus(): JSX.Element {
+  const { t } = useTranslation();
+  const [state, setState] = useState<ApiState>({ status: 'loading' });
 
   useEffect(() => {
     const controller = new AbortController();
-
     fetch('/api/version', { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error(`http_${String(response.status)}`);
-        const info = (await response.json()) as VersionInfo;
-        setState({ status: 'ready', info });
+        setState({ status: 'ready', info: (await response.json()) as VersionInfo });
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === 'AbortError') return;
         setState({ status: 'error', code: error instanceof Error ? error.message : 'unknown' });
       });
-
     return () => {
       controller.abort();
     };
   }, []);
 
+  if (state.status === 'loading') return <Callout tone="info">{t('state.loading')}</Callout>;
+  if (state.status === 'error') {
+    return (
+      <Callout tone="danger">
+        {t('state.apiUnreachable')} <Identifier value={state.code} />
+      </Callout>
+    );
+  }
   return (
-    <main>
-      <h1>C.S.A.S</h1>
-      <p>Customer Service Automation System</p>
-      {state.status === 'loading' && <p role="status">Checking the API…</p>}
-      {state.status === 'ready' && (
-        <dl>
-          <dt>API</dt>
-          <dd>{state.info.name}</dd>
-          <dt>Version</dt>
-          <dd>{state.info.version}</dd>
-          <dt>Environment</dt>
-          <dd>{state.info.environment}</dd>
-        </dl>
-      )}
-      {state.status === 'error' && <p role="alert">The API is not reachable ({state.code}).</p>}
-    </main>
+    <Callout tone="success">
+      <Identifier value={state.info.name} /> <Identifier value={state.info.version} /> ·{' '}
+      <Identifier value={state.info.environment} />
+    </Callout>
+  );
+}
+
+/**
+ * The design system, rendering itself.
+ *
+ * Not a storybook: it is the real application shell with the real components,
+ * so switching language or theme here exercises exactly what every later
+ * screen will do. Phase 4 replaces the content and keeps the frame.
+ */
+export function App(): JSX.Element {
+  const { locale } = useLocale();
+  const { t } = useTranslation();
+  const preferences: FormatPreferences = { locale };
+  const now = new Date('2026-10-24T12:30:00Z');
+
+  return (
+    <>
+      <a className="skip-link" href="#main">
+        {t('app.skipToContent')}
+      </a>
+
+      <header className={appStyles.header}>
+        <div>
+          <strong>{t('app.name')}</strong>{' '}
+          <span className={appStyles.tagline}>{t('app.tagline')}</span>
+        </div>
+        <Settings />
+      </header>
+
+      <main id="main" className={appStyles.main}>
+        <h1>{t('page.dashboard')}</h1>
+        <p>{formatDate(now, preferences)}</p>
+
+        <ApiStatus />
+
+        <Card title={t('ticket.count', { count: ROWS.length })} headingLevel="h2">
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th scope="col">{t('ticket.reference')}</th>
+                  <th scope="col">{t('ticket.customer')}</th>
+                  <th scope="col">{t('ticket.deadline')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ROWS.map((row) => (
+                  <tr key={row.reference}>
+                    <td>
+                      <Identifier value={row.reference} />
+                    </td>
+                    <td>{row.customer}</td>
+                    <td>
+                      {row.minutes < 0 ? (
+                        <Tag tone="danger" icon={<AlertIcon />}>
+                          {t('ticket.breached')}
+                        </Tag>
+                      ) : (
+                        <Tag
+                          tone={row.tone === 'warning' ? 'warning' : 'neutral'}
+                          icon={<ClockIcon />}
+                        >
+                          {formatCountdown(row.minutes * 60_000, preferences)}
+                        </Tag>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+
+        <Card title={t('chat.assistant')} headingLevel="h2">
+          <p className={appStyles.meta}>
+            <Identifier value="CSAS-001240" /> · {t('chat.confidence')}{' '}
+            {formatNumber(0.88, preferences)}
+          </p>
+
+          {/* BIDI-03. The direction belongs to the message, not to the
+              interface: this Arabizi line resolves LTR inside an Arabic page,
+              and it is never tagged `lang="en"` — it is Arabic written in
+              Latin characters, and that tag would have a screen reader
+              pronounce it with an English voice. */}
+          <p className={appStyles.bubble} dir="auto">
+            el printer 3am ya3mel error ba3ed l update, chou badna na3mel?
+          </p>
+
+          <Field
+            label={t('chat.composerLabel')}
+            placeholder={t('chat.composerPlaceholder')}
+            /* Free text of unknown script — Arabic, Arabizi or English. */
+            dir="auto"
+          />
+
+          <div className={appStyles.actions}>
+            <Button variant="primary">
+              <SendIcon />
+              {t('action.send')}
+            </Button>
+            <Button variant="quiet">{t('chat.escalate')}</Button>
+          </div>
+        </Card>
+      </main>
+    </>
   );
 }

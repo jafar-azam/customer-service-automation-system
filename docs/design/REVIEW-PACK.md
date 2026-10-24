@@ -156,3 +156,9 @@ actually answer — as opposed to the ones that need a runtime audit or a study:
 - Whether MSA for the interface with dialect in the conversation is the right
   split, or an uncomfortable seam.
 - Whether an Arabic-Indic numeral preference is worth building at all.
+- Whether `1,234.56` or `1.234,56` is right in a Lebanese Arabic interface.
+  Step 10 pairs Western separators with Western digits, because mixing them
+  makes `LBP 250.000` ambiguous — but the European convention is genuinely used
+  in Lebanon, so this is a decision rather than a finding.
+- Whether `لوحة المعلومات` reads naturally as the dashboard's name, or whether
+  the English `dashboard` is what staff actually say.

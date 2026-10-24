@@ -117,6 +117,19 @@
           "focus": "#8FBBE4",
           "borderStrong": "#68707C"
         }
+      },
+      "fonts": {
+        "latin": "IBM Plex Sans",
+        "arabic": "IBM Plex Sans Arabic",
+        "mono": "IBM Plex Mono"
+      },
+      "scale": {
+        "base": 4,
+        "radius": 4,
+        "radiusLarge": 6,
+        "density": "dense",
+        "bodySize": 14,
+        "headingWeight": 600
       }
     },
     {
@@ -155,6 +168,19 @@
           "focus": "#5CBFB3",
           "borderStrong": "#6B6558"
         }
+      },
+      "fonts": {
+        "latin": "Source Serif 4",
+        "arabic": "Noto Naskh Arabic",
+        "mono": "IBM Plex Mono"
+      },
+      "scale": {
+        "base": 8,
+        "radius": 2,
+        "radiusLarge": 3,
+        "density": "roomy",
+        "bodySize": 16,
+        "headingWeight": 600
       }
     },
     {
@@ -193,7 +219,22 @@
           "focus": "#8FB6EC",
           "borderStrong": "#69726B"
         }
+      },
+      "fonts": {
+        "latin": "Figtree",
+        "arabic": "Readex Pro",
+        "mono": "IBM Plex Mono"
+      },
+      "scale": {
+        "base": 6,
+        "radius": 10,
+        "radiusLarge": 14,
+        "density": "normal",
+        "bodySize": 15,
+        "headingWeight": 600
       }
     }
-  ]
+  ],
+  "chosen": "dossier",
+  "chosenNote": "Dossier was approved on 2026-10-24 and is the only direction step 10 builds tokens from. The other two are kept, not deleted: they are the evidence that the approval gate in step 09 was a real choice between real alternatives, and `docs/design/previews/` still renders all three. `scripts/build-tokens.mjs` reads `chosen` and ignores the rest."
 }

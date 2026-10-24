@@ -28,7 +28,8 @@ has no supporting evidence, it says so, and says what would settle it.
 | Currency | Always labelled `LBP`/`USD` (or `ل.ل.` in consumer contexts). Never a bare `$` | Moderate |
 | Ticket identifiers | Preserved exactly, isolated LTR, copied canonically | Strong — W3C bidi guidance |
 | Charts | Direction stated explicitly per chart; chronological axes fixed LTR in the dashboard | Weak for Lebanese preference — a product choice made for cross-language comparison, not a claimed standard |
-| Accessibility target | WCAG 2.1 AA (the specification's bar). The research recommends 2.2 AA — see §5 | Open |
+| Accessibility target | **WCAG 2.1 AA.** Confirmed 2026-10-24 over the research's 2.2 recommendation — see §5 | Decided |
+| Number separators | Follow the digits: Western digits format through `en-LB`, Arabic-Indic through `ar-LB` | Product decision — see §1.3 |
 
 ### 1.1 The reversal
 
@@ -43,6 +44,18 @@ is **moderate**: it establishes what those publishers do, not what Lebanese user
 prefer. The research says so explicitly, and declines to claim a national
 preference. So this is a defensible default that the native reviewers can
 overturn — not a finding.
+
+### 1.3 Separators follow the digits
+
+`ar-LB` with Western digits produces `1.234.567,89` — the European convention,
+which is genuinely used in Lebanon. The problem is the mixture: a reader who
+sees Western digits reads Western separators, so `LBP 250.000` is read as two
+hundred fifty by half the audience and as a quarter of a million by the other
+half. In a support conversation about a refund that is not a cosmetic defect.
+
+So number formatting uses the locale whose digits are in use, while dates and
+month names still come from the interface locale — `تشرين الأول` is not a
+separator. A product decision, on the reviewer list rather than settled.
 
 ### 1.2 Why digits are not a cosmetic question here
 
@@ -64,38 +77,38 @@ the step that owns each, and marks the ones already enforced.
 
 | ID | Rule | Enforced by | Status |
 | :-- | :-- | :-- | :-- |
-| LOC-01 | Root `lang` and `dir` set from the interface language | preview test; step 10 DOM assertion per route | **done (previews)** |
+| LOC-01 | Root `lang` and `dir` set from the interface language | preview test; `App.test.tsx` DOM assertion | **done** |
 | LOC-02 | Interface language is separate from conversation language | step 10 state model, step 17 chat | open |
-| LOC-03 | Dates, numbers and money go through shared formatters | step 10 `@csas/shared` formatters | open |
-| LOC-04 | Calendar, numbering system and time zone configured explicitly | step 10 formatter unit tests | open |
+| LOC-03 | Dates, numbers and money go through shared formatters | `packages/shared/src/locale.ts`, `locale.test.ts` | **done** |
+| LOC-04 | Calendar, numbering system and time zone configured explicitly | `locale.test.ts` — incl. formatting in Beirut from a Tokyo host | **done** |
 | LOC-05 | Ticket identifiers preserved exactly | step 14 round-trip + clipboard tests | open |
-| LOC-06 | Digits never globally converted in chat | preview test; step 17 Arabizi fixtures | **done (previews)** |
-| LOC-07 | Digit normalisation only in fields declared numeric | step 11 field parsers | open |
+| LOC-06 | Digits never globally converted in chat | preview test; `locale.test.ts`; step 17 Arabizi fixtures | **done** |
+| LOC-07 | Digit normalisation only in fields declared numeric | `locale.test.ts` — `normalizeDigits` | **done** |
 | LOC-08 | Formatted currency never parsed as the source of truth | step 12 money type | open |
 | LOC-09 | No hard-coded Beirut UTC offset | lint check, step 10 | open |
 | LOC-10 | Date-only values kept distinct from instants | step 05 schema (already date-typed), step 14 boundary tests | partial |
 | BIDI-01 | Unknown inserted inline text is isolated | step 10 component API | open |
-| BIDI-02 | Known LTR identifiers isolated | preview test | **done (previews)** |
-| BIDI-03 | Free-text input uses automatic direction | preview test; step 17 | **done (previews)** |
+| BIDI-02 | Known LTR identifiers isolated | preview test; `components.test.tsx` (`<bdi>`, not CSS) | **done** |
+| BIDI-03 | Free-text input uses automatic direction | preview test; `App.test.tsx` | **done** |
 | BIDI-04 | Strings are never reversed to implement RTL | review + static check | **done (never used)** |
 | BIDI-05 | No bidi overrides without a documented exception | control-character scan, step 11 | open |
 | BIDI-06 | Copy actions return canonical values | step 14 clipboard assertions | open |
-| CSS-01 | Logical properties by default | preview test (no physical property in any generated stylesheet) | **done (previews)** |
+| CSS-01 | Logical properties by default | `stylesheet-rules.test.mjs` — every stylesheet in the repository | **done** |
 | CSS-02 | Physical properties only with a documented geometry reason | step 10 allowlist | open |
-| CSS-03 | No global `scaleX(-1)` | preview test covers the generated CSS | **done (previews)** |
+| CSS-03 | No global `scaleX(-1)` | `stylesheet-rules.test.mjs` | **done** |
 | CSS-04 | Only icons marked directional are mirrored | step 10 icon registry | open |
 | CSS-05 | No accidental double mirroring | step 10 LTR/RTL snapshots | open |
 | CSS-06 | Chart direction specified explicitly | step 29 | open |
-| TYPE-01 | No unreviewed tracking or synthetic italics on Arabic | preview test | **done (previews)** |
+| TYPE-01 | No unreviewed tracking or synthetic italics on Arabic | `stylesheet-rules.test.mjs` | **done** |
 | TYPE-02 | No fixed text heights that clip approved samples | step 10 overflow tests | open |
 | TYPE-03 | User diacritics preserved in display | step 17 round-trip | open |
 | TYPE-04 | Fonts ship only with recorded licence approval | `previews/fonts/LICENCE.md`, verified against the distributed files | **done** |
-| MSG-01 | Complete messages translated, never concatenated fragments | preview test | **done (previews)** |
-| MSG-02 | Plural boundaries tested across all six Arabic categories | step 10 locale unit tests | open |
-| MSG-03 | Interpolation variables validated across languages | step 10 build-time resource check | open |
+| MSG-01 | Complete messages translated, never concatenated fragments | preview test; catalogue structure | **done** |
+| MSG-02 | Plural boundaries tested across all six Arabic categories | `i18n.test.ts` — six categories at their boundaries | **done** |
+| MSG-03 | Interpolation variables validated across languages | `i18n.test.ts` — keys and interpolation variables | **done** |
 | TERM-01 | The approved glossary enforced contextually | §3 below; step 10 translation QA | partial |
-| A11Y-01 | Semantic DOM and focus order preserved | step 10 axe + keyboard tests | open |
-| A11Y-02 | Icon-only controls have localized accessible names | step 10 axe | open |
+| A11Y-01 | Semantic DOM and focus order preserved | axe over the app × 2 languages × 2 themes | **done** |
+| A11Y-02 | Icon-only controls have localized accessible names | `components.test.tsx` | **done** |
 | A11Y-03 | Chat updates announced at a usable cadence | step 17 + reviewer pack | open |
 | QA-01 | Distinct LTR and RTL visual baselines | step 33 | open |
 | QA-02 | Release blocked for critical linguistic or bidi defects | `REVIEW-PACK.md` release gate | open |
@@ -179,7 +192,10 @@ copy/paste, search, notification previews and export — "not just screenshots".
 
 ---
 
-## 5. The open question: WCAG 2.1 or 2.2
+## 5. WCAG 2.1 or 2.2 — decided
+
+**Decision, 2026-10-24: stay at WCAG 2.1 AA**, the specification's committed
+target. The 2.2 delta is recorded per step rather than retrofitted at the end.
 
 The specification commits to **WCAG 2.1 AA**. The research recommends **2.2 AA**.
 
@@ -189,10 +205,9 @@ entry, accessible authentication. Several are cheap here and two are not:
 *accessible authentication* interacts with the TOTP flow in step 06, and *target
 size* constrains the Operations Desk direction's deliberately dense rows.
 
-**Recommendation: build to 2.1 AA as committed, and record the 2.2 delta per
-step rather than retrofitting it at the end.** Changing the committed target is
-a specification change and therefore the user's call, not mine. Step 10 is the
-cheapest moment to decide.
+`test/axe.ts` therefore runs the `wcag2a wcag2aa wcag21a wcag21aa` tag set and
+not the 2.2 tags. Raising the target later is a one-line change there plus
+whatever it then reports — which is the point of recording the delta.
 
 ---
 
@@ -203,11 +218,13 @@ the failure mode this document exists to prevent:
 
 - No representative Lebanese numeral experiment. The Western-digit default is a
   reasoned default, not a measured preference.
-- `ar-LB` CLDR defaults — digits, month strings, hour cycle, patterns — were not
-  inspected. The research supplies a runtime audit script; step 10 runs it and
-  commits the output.
-- Eleven of the twelve Levantine month names are conventional, not verified
-  against the current CLDR dataset.
+- ~~`ar-LB` CLDR defaults were not inspected.~~ **Settled in step 10.**
+  `npm run audit:cldr` commits `docs/design/cldr-audit.json`: `ar-LB` resolves
+  to `gregory/arab` with a 12-hour cycle, which is why the explicit
+  configuration matters.
+- ~~Eleven of the twelve Levantine month names are unverified.~~ **Settled in
+  step 10.** All twelve match CLDR `ar-LB` on ICU 78.3, asserted by a test that
+  fails if a runtime upgrade ever disagrees.
 - No screen-reader testing on any stack. NVDA, JAWS, VoiceOver (macOS and iOS)
   and TalkBack are all **unverified**; a pass on one must never be generalised.
 - The glossary has no Lebanese task-based comprehension review behind it.

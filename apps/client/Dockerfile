@@ -26,10 +26,22 @@ COPY --chown=node:node package.json package-lock.json ./
 COPY --chown=node:node packages/shared/package.json packages/shared/
 COPY --chown=node:node apps/client/package.json apps/client/
 COPY --chown=node:node apps/server/package.json apps/server/
-RUN npm ci
+# `--ignore-scripts`, matching the server image. A workspace install pulls in
+# every workspace's dev dependencies, and `redis-memory-server`'s postinstall
+# compiles Redis from source — which needs `make`, absent from a slim image, so
+# the build fails on a package this image never runs. Nothing the client ships
+# needs a lifecycle script.
+RUN npm ci --ignore-scripts
 
 FROM deps AS dev
-COPY --chown=node:node tsconfig.base.json tsconfig.json ./
+# The root tsconfig.json is deliberately *not* copied. It is a solution file
+# whose only content is references to all three projects, including
+# ./apps/server, which this image has no reason to contain. Vite's transformer
+# resolves the nearest tsconfig when it processes @csas/shared and fails on the
+# dangling reference — a failure that only appeared once the client started
+# importing the shared locale formatters. Nothing here needs it: each project's
+# own tsconfig extends tsconfig.base.json directly.
+COPY --chown=node:node tsconfig.base.json ./
 COPY --chown=node:node packages/shared packages/shared
 COPY --chown=node:node apps/client apps/client
 RUN npx tsc -b packages/shared
@@ -37,7 +49,7 @@ EXPOSE 5173
 CMD ["npm", "run", "dev", "-w", "@csas/client"]
 
 FROM deps AS build
-COPY --chown=node:node tsconfig.base.json tsconfig.json ./
+COPY --chown=node:node tsconfig.base.json ./
 COPY --chown=node:node packages/shared packages/shared
 COPY --chown=node:node apps/client apps/client
 RUN npx tsc -b packages/shared && npm run build -w @csas/client

@@ -45,9 +45,25 @@ jobs:
         # broken scanner is caught by CI rather than by the pre-commit hook of
         # the one person who does hold it.
         run: npm run scan:personal-data
+      - name: Palette meets WCAG 2.1 AA
+        # Computed from docs/design/palettes.json, not asserted. jsdom has no
+        # layout engine, so axe cannot check contrast in the component tests;
+        # this is the half of the coverage those tests cannot provide.
+        run: npm run check:contrast
+      - name: Generated files match their sources
+        # tokens.css, the design previews and the CLDR audit are all generated.
+        # Regenerating and diffing catches the case where someone edits the
+        # output by hand, or changes a generator and forgets to rebuild.
+        run: |
+          npm run build:tokens
+          npm run build:previews
+          npm run audit:cldr
+          git diff --exit-code -- apps/client/src/styles/tokens.css docs/design
       - name: Type-check and build
         run: npm run build
       - name: Tests with coverage
+        # Includes the axe pass over the application in Arabic and English,
+        # light and dark (apps/client/src/App.test.tsx).
         run: npm run test:coverage
       - uses: actions/upload-artifact@v7
         if: always()

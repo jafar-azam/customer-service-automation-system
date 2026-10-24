@@ -1,0 +1,115 @@
+import { describe, expect, it } from 'vitest';
+import { chooseLocale, createI18n, resources } from './index.js';
+
+describe('choosing the opening language', () => {
+  it('prefers a stored choice over everything', () => {
+    expect(chooseLocale('en-LB', ['ar'])).toBe('en-LB');
+  });
+
+  /* By primary subtag: someone whose browser says `ar-SY` reads Arabic. The
+     region decides which Arabic, and this product has one. */
+  it('matches the browser by language, not by exact tag', () => {
+    expect(chooseLocale(undefined, ['ar-SY', 'fr'])).toBe('ar-LB');
+    expect(chooseLocale(undefined, ['en-US'])).toBe('en-LB');
+  });
+
+  it('falls back to Arabic, because the customers are in Lebanon', () => {
+    expect(chooseLocale(undefined, ['fr-FR', 'de'])).toBe('ar-LB');
+    expect(chooseLocale(undefined, [])).toBe('ar-LB');
+  });
+});
+
+describe('MSG-02 — Arabic plural categories', () => {
+  const t = createI18n('ar-LB').getFixedT('ar-LB');
+
+  /* All six, from the research's test specification. A binary plural is wrong
+     for five of them, and the shape of the counted noun changes with the
+     category — `3 طلبات` but `11 طلبًا`. */
+  const cases: readonly [number, string][] = [
+    [0, 'لا توجد طلبات دعم'],
+    [1, 'طلب دعم واحد'],
+    [2, 'طلبا دعم'],
+    [3, '3 طلبات دعم'],
+    [10, '10 طلبات دعم'],
+    [11, '11 طلبًا للدعم'],
+    [99, '99 طلبًا للدعم'],
+    [100, 'عدد طلبات الدعم: 100'],
+    [101, 'عدد طلبات الدعم: 101'],
+  ];
+
+  for (const [count, expected] of cases) {
+    it(`renders ${String(count)} as its own category`, () => {
+      expect(t('ticket.count', { count })).toBe(expected);
+    });
+  }
+
+  it('is not a binary singular/plural', () => {
+    const rendered = new Set(cases.map(([count]) => t('ticket.count', { count })));
+    expect(rendered.size).toBeGreaterThan(2);
+  });
+
+  it('uses the runtime CLDR categories rather than a hand-written list', () => {
+    expect(new Intl.PluralRules('ar-LB').resolvedOptions().pluralCategories).toEqual(
+      expect.arrayContaining(['zero', 'one', 'two', 'few', 'many', 'other']),
+    );
+  });
+});
+
+describe('MSG-03 — the catalogues agree', () => {
+  interface Tree {
+    [key: string]: string | Tree;
+  }
+
+  const flatten = (tree: Tree, prefix = ''): Record<string, string> =>
+    Object.entries(tree).reduce<Record<string, string>>((all, [key, value]) => {
+      const path = prefix ? `${prefix}.${key}` : key;
+      return typeof value === 'string'
+        ? { ...all, [path]: value }
+        : { ...all, ...flatten(value, path) };
+    }, {});
+
+  const ar = flatten(resources['ar-LB'].translation);
+  const en = flatten(resources['en-LB'].translation);
+
+  /* Plural suffixes legitimately differ — Arabic has six categories and
+     English two — so keys are compared with the suffix stripped. */
+  const base = (keys: string[]) =>
+    new Set(keys.map((key) => key.replace(/_(zero|one|two|few|many|other)$/, '')));
+
+  it('has the same keys in both languages', () => {
+    expect([...base(Object.keys(ar))].sort()).toEqual([...base(Object.keys(en))].sort());
+  });
+
+  it('has no empty string in either', () => {
+    for (const [key, value] of [...Object.entries(ar), ...Object.entries(en)]) {
+      expect(value.trim(), key).not.toBe('');
+    }
+  });
+
+  /* An interpolation variable present in one language and missing in the
+     other renders a number nowhere, or `{{count}}` to a customer. */
+  it('uses the same interpolation variables for the same message', () => {
+    const variables = (value: string) =>
+      [...value.matchAll(/\{\{(\w+)\}\}/g)].map((match) => match[1]).sort();
+
+    for (const [key, english] of Object.entries(en)) {
+      const arabicKeys = Object.keys(ar).filter(
+        (candidate) =>
+          candidate === key ||
+          candidate.replace(/_(zero|one|two|few|many|other)$/, '') ===
+            key.replace(/_(zero|one|two|few|many|other)$/, ''),
+      );
+      expect(arabicKeys.length, `${key} has no Arabic counterpart`).toBeGreaterThan(0);
+
+      /* `count_other` in English carries {{count}}; Arabic's `_zero` form is
+         a complete sentence with no number in it, which is correct and is why
+         this checks the union rather than each form. */
+      if (variables(english).includes('count')) {
+        const anyArabicUsesCount = arabicKeys.some((candidate) =>
+          variables(ar[candidate] ?? '').includes('count'),
+        );
+        expect(anyArabicUsesCount, `${key} never interpolates count in Arabic`).toBe(true);
+      }
+    }
+  });
+});

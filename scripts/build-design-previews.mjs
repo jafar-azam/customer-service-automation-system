@@ -34,9 +34,6 @@ export const DIRECTIONS = {
       'Neutral slate throughout so that the one amber and the one red mean something — nothing else on the screen competes with an SLA about to breach.',
     ],
     fonts: {
-      latin: 'IBM Plex Sans',
-      arabic: 'IBM Plex Sans Arabic',
-      mono: 'IBM Plex Mono',
       note: 'One family drawn for both scripts, so Arabic and English sit on the same baseline with the same weight and colour. Monospace for references and timers, where a wandering digit width is a readability bug.',
     },
     faces: [
@@ -46,14 +43,6 @@ export const DIRECTIONS = {
       ['Arabic', 'plex-arabic-600.woff2', 600],
       ['Mono', 'plex-mono-400.woff2', 400],
     ],
-    scale: {
-      base: 4,
-      radius: 4,
-      radiusLarge: 6,
-      density: 'dense',
-      bodySize: 14,
-      headingWeight: 600,
-    },
     scaleNote:
       '4px base, 4px radius. Tight because an agent sees forty rows, not four; sharp because a rounded corner at this density reads as blur.',
   },
@@ -63,9 +52,6 @@ export const DIRECTIONS = {
       'It slows the eye down on purpose — this is the direction for a product whose credibility comes from being careful rather than fast.',
     ],
     fonts: {
-      latin: 'Source Serif 4',
-      arabic: 'Noto Naskh Arabic',
-      mono: 'IBM Plex Mono',
       note: 'Naskh is the Arabic tradition that actually matches a Latin serif — both are calligraphic, both carry authority. Most Arabic/Latin pairings reach for a geometric sans and lose that entirely.',
     },
     faces: [
@@ -75,14 +61,6 @@ export const DIRECTIONS = {
       ['Arabic', 'naskh-600.woff2', 600],
       ['Mono', 'plex-mono-400.woff2', 400],
     ],
-    scale: {
-      base: 8,
-      radius: 2,
-      radiusLarge: 3,
-      density: 'roomy',
-      bodySize: 16,
-      headingWeight: 600,
-    },
     scaleNote:
       '8px base, 2px radius. Generous spacing and almost-square corners: the structure comes from horizontal rules and margins, the way a printed document does.',
   },
@@ -92,9 +70,6 @@ export const DIRECTIONS = {
       'The most familiar of the three — closest to the tools people already use — which makes it the safest choice and the least distinctive one.',
     ],
     fonts: {
-      latin: 'Figtree',
-      arabic: 'Readex Pro',
-      mono: 'IBM Plex Mono',
       note: 'Readex Pro was drawn for Arabic first and given a Latin companion, so the Arabic is not an afterthought. It is noticeably rounder than Plex, which is the point of this direction.',
     },
     faces: [
@@ -104,14 +79,6 @@ export const DIRECTIONS = {
       ['Arabic', 'readex-600.woff2', 600],
       ['Mono', 'plex-mono-400.woff2', 400],
     ],
-    scale: {
-      base: 6,
-      radius: 10,
-      radiusLarge: 14,
-      density: 'normal',
-      bodySize: 15,
-      headingWeight: 600,
-    },
     scaleNote:
       '6px base, 10px radius. Rounded enough to feel approachable to a customer in the chat, restrained enough not to look like a consumer app in the queue.',
   },
@@ -802,7 +769,20 @@ function main() {
     if (!direction) throw new Error(`no design notes for ${entry.id}`);
     writeFileSync(
       join(OUT, `${entry.id}.html`),
-      page(entry.id, { ...direction, name: entry.name }, entry.modes),
+      page(
+        entry.id,
+        {
+          ...direction,
+          name: entry.name,
+          scale: entry.scale,
+          /* `fonts` is split across both files on purpose: the family names are
+             values the product consumes, so they live in palettes.json with the
+             colours; the note explaining the pairing is prose about the
+             direction and stays here. */
+          fonts: { ...entry.fonts, ...direction.fonts },
+        },
+        entry.modes,
+      ),
     );
     console.log(`built ${OUT}/${entry.id}.html`);
   }

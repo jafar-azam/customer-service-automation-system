@@ -14,3 +14,23 @@ import { cleanup } from '@testing-library/react';
 afterEach(() => {
   cleanup();
 });
+
+/**
+ * jsdom implements `matchMedia` as a stub that throws when a listener is
+ * attached, and the theme rules ask for one.
+ *
+ * It answers "no" to every query, which is the right default: no dark mode,
+ * no reduced motion, so a test that depends on either has to say so.
+ */
+Object.defineProperty(globalThis, 'matchMedia', {
+  writable: true,
+  value: (query: string): MediaQueryList =>
+    ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      dispatchEvent: () => false,
+    }) as unknown as MediaQueryList,
+});

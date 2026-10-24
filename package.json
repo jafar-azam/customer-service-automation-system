@@ -15,7 +15,7 @@
     "apps/server"
   ],
   "scripts": {
-    "build": "tsc -b && npm run build -w @csas/client",
+    "build": "npm run build:tokens && tsc -b && npm run build -w @csas/client",
     "clean": "tsc -b --clean && rm -rf apps/*/dist packages/*/dist coverage",
     "dev": "concurrently -n server,client -c blue,magenta \"npm:dev:server\" \"npm:dev:client\"",
     "dev:client": "npm run dev -w @csas/client",
@@ -30,6 +30,8 @@
     "scan:personal-data": "node scripts/personal-data-scan.mjs",
     "check:contrast": "node scripts/contrast-check.mjs",
     "build:previews": "node scripts/build-design-previews.mjs",
+    "build:tokens": "node scripts/build-tokens.mjs",
+    "audit:cldr": "node scripts/audit-cldr.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

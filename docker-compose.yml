@@ -191,11 +191,19 @@ services:
       target: dev
     <<: *restart
     volumes:
-      # Source is mounted so edits are live. node_modules stays in the image —
-      # the anonymous volume shadows the host's, which may not even exist.
+      # Source is mounted so edits are live. node_modules stays in the image,
+      # shadowed here so the host's tree — which may not exist, and on Windows
+      # would be the wrong platform's binaries — cannot leak in.
+      #
+      # Anonymous, not named. A named volume persists across `up --build`, so
+      # the container keeps serving the dependency set it first started with:
+      # adding i18next, rebuilding, and watching Vite still report "failed to
+      # resolve i18next" is how this was found. An anonymous volume is
+      # recreated from the image every time the container is, which is the
+      # behaviour the mount was always meant to have.
       - ./apps/client/src:/app/apps/client/src:ro
       - ./apps/client/index.html:/app/apps/client/index.html:ro
-      - client-node-modules:/app/node_modules
+      - /app/node_modules
     expose:
       - '5173'
     # Vite exits non-zero on a config error but npm restarts it, so "Up" alone
@@ -287,6 +295,5 @@ volumes:
   mongo-keyfile:
   redis-data:
   server-storage:
-  client-node-modules:
   clamav-db:
   ollama-models:
