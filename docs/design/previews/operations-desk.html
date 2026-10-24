@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" dir="ltr" data-theme="light">
+<html lang="en-LB" dir="ltr" data-theme="light">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -153,7 +153,39 @@ table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th { text-align: start; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); font-weight: 600; padding: 0 calc(var(--unit) * 2) calc(var(--unit) * 1.5); border-bottom: 1px solid var(--border); white-space: nowrap; }
 td { padding: 8px calc(var(--unit) * 2); border-bottom: 1px solid var(--border); vertical-align: middle; }
 tbody tr:last-child td { border-bottom: 0; }
-.ref { font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); }
+/* An identifier is an LTR token wherever it appears. Isolated rather than
+   merely direction-set, so the bidi algorithm cannot let surrounding Arabic
+   punctuation migrate across its edges and change what the reader sees it as.
+   The markup is <bdi>, which isolates on its own; this is belt and braces for
+   the copy path and for a future <span class="ref">. */
+.ref { font-family: 'CSAS Mono', ui-monospace, monospace; font-size: 12px; color: var(--text-muted); direction: ltr; unicode-bidi: isolate; }
+
+/* Arabic typography, from docs/research/localization-lebanon.md (TYPE-01).
+   Letter-spacing breaks the joining behaviour that Arabic script depends on,
+   and text-transform: uppercase has no meaning in Arabic while still
+   mangling any Latin embedded in an Arabic string. Both are inherited from the
+   label, header and eyebrow rules above, which were written for Latin; this
+   switches them off for Arabic rather than removing them everywhere.
+
+   :lang(ar) matches ar-LB too - that is how the selector is defined, and
+   it is why the regional tag on <html> costs nothing here. */
+:lang(ar) { letter-spacing: normal; text-transform: none; }
+
+/* Never fake a weight. Both families ship a real 400 and 600; if a face fails
+   to load, this makes it visible instead of substituting a smeared synthetic
+   bold, which on Arabic destroys the letterforms rather than thickening them. */
+:lang(ar) { font-synthesis: none; }
+
+/* IBM Plex Mono carries no Arabic, so any Arabic inside a monospace rule falls
+   back to whatever the system supplies - which is how the overdue label and the
+   conversation meta line ended up set in a face that broke their joins. The
+   mono rules are right about intent (aligned figures, an operational register),
+   so rather than stripping them, the variable they read is repointed for
+   Arabic. Latin-only tokens opt back in explicitly below. */
+:lang(ar) { --font-mono: 'CSAS Arabic', 'CSAS Latin', system-ui, sans-serif; }
+
+/* Figures still have to line up in a column once the mono face is gone. */
+.sla, .ref, .stat strong { font-variant-numeric: tabular-nums; }
 
 .tag { display: inline-flex; align-items: center; gap: calc(var(--unit) * 0.75); font-size: 12px; padding: 2px calc(var(--unit) * 1.25); border-radius: var(--radius); background: var(--surface-muted); color: var(--text-muted); white-space: nowrap; }
 .sla { display: inline-flex; align-items: center; gap: calc(var(--unit) * 0.75); font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
@@ -234,7 +266,7 @@ tbody tr:last-child td { border-bottom: 0; }
 </section>
   <div data-screens="en">
     <section class="screen">
-  <div class="screen-label"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg> Public site — home</div>
+  <div class="screen-label" lang="en"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg> Public site — home</div>
   <nav class="site-nav">
     <div class="wordmark">C.S.A.S <span>support</span></div>
     <ul><li>Home</li><li>About</li><li>Services</li><li>Contact</li></ul>
@@ -253,10 +285,10 @@ tbody tr:last-child td { border-bottom: 0; }
   </div>
 </section>
     <section class="screen">
-  <div class="screen-label"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Dashboard — ticket queue</div>
+  <div class="screen-label" lang="en"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Dashboard — ticket queue</div>
   <div class="dash">
     <aside class="side">
-      <h2>Desk</h2>
+      <h2 lang="en">Desk</h2>
       <a href="#" class="current"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Ticket queue</a>
       <a href="#"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg> Knowledge base</a>
       <a href="#"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg> Customers</a>
@@ -274,28 +306,28 @@ tbody tr:last-child td { border-bottom: 0; }
         <thead><tr><th>Ref</th><th>Customer</th><th>Subject</th><th>Form</th><th>Priority</th><th>SLA</th></tr></thead>
         <tbody>
           <tr>
-            <td class="ref">CSAS-001241</td>
+            <td><bdi class="ref" dir="ltr">CSAS-001241</bdi></td>
             <td>Cedar Pharmaceuticals</td>
             <td>Stock sync stopped overnight</td>
             <td><span class="tag">Arabizi</span></td>
             <td>High</td>
             <td><span class="sla sla-warn"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> 00:12</span></td>
           </tr><tr>
-            <td class="ref">CSAS-001240</td>
+            <td><bdi class="ref" dir="ltr">CSAS-001240</bdi></td>
             <td>Beirut Logistics</td>
             <td>Cannot print delivery notes</td>
             <td><span class="tag">Lebanese</span></td>
             <td>Urgent</td>
             <td><span class="sla sla-danger"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg> breached</span></td>
           </tr><tr>
-            <td class="ref">CSAS-001238</td>
+            <td><bdi class="ref" dir="ltr">CSAS-001238</bdi></td>
             <td>Tripoli Textiles</td>
             <td>Second till licence</td>
             <td><span class="tag">English</span></td>
             <td>Low</td>
             <td><span class="sla sla-ok"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> 06:40</span></td>
           </tr><tr>
-            <td class="ref">CSAS-001237</td>
+            <td><bdi class="ref" dir="ltr">CSAS-001237</bdi></td>
             <td>Cedar Pharmaceuticals</td>
             <td>Batch export missing column</td>
             <td><span class="tag">MSA</span></td>
@@ -308,18 +340,18 @@ tbody tr:last-child td { border-bottom: 0; }
   </div>
 </section>
     <section class="screen">
-  <div class="screen-label"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg> Customer — conversation</div>
+  <div class="screen-label" lang="en"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg> Customer — conversation</div>
   <div class="chat">
     <div class="chat-head">
       <h2>Printer stopped after the update</h2>
-      <p>CSAS-001240 · Beirut Logistics · opened 11 minutes ago</p>
+      <p><bdi class="ref" dir="ltr">CSAS-001240</bdi> · Beirut Logistics · opened 11 minutes ago</p>
     </div>
 
     <div class="msg msg-customer">
       <div class="avatar"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></div>
       <div>
         <div class="who">Customer <span class="tag">Arabizi</span></div>
-        <div class="bubble">el printer 3am ya3mel error ba3ed l update, chou badna na3mel?</div>
+        <div class="bubble" dir="auto">el printer 3am ya3mel error ba3ed l update, chou badna na3mel?</div>
       </div>
     </div>
 
@@ -327,9 +359,9 @@ tbody tr:last-child td { border-bottom: 0; }
       <div class="avatar"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg></div>
       <div>
         <div class="who">Assistant <span class="confidence">Confidence 0.88</span></div>
-        <div class="bubble">
+        <div class="bubble" dir="auto">
           After the 4.1 update the spooler service does not restart on its own. Stop the print spooler, clear the queue folder, then start it again — the delivery-note template is unaffected.
-          <div><span class="citation"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg> Knowledge base · KB-0412 · Print spooler after upgrade</span></div>
+          <div><span class="citation"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg> Knowledge base · <bdi class="ref" dir="ltr">KB-0412</bdi> · Print spooler after upgrade</span></div>
         </div>
       </div>
     </div>
@@ -343,15 +375,15 @@ tbody tr:last-child td { border-bottom: 0; }
     </div>
 
     <div class="composer">
-      <input placeholder="Write a reply…" aria-label="Write a reply…" />
+      <input dir="auto" placeholder="Write a reply…" aria-label="Write a reply…" />
       <button class="btn btn-primary interactive"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg> Send</button>
     </div>
   </div>
 </section>
   </div>
-  <div data-screens="ar" dir="rtl" lang="ar" hidden>
+  <div data-screens="ar" dir="rtl" lang="ar-LB" hidden>
     <section class="screen">
-  <div class="screen-label"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg> Public site — home</div>
+  <div class="screen-label" lang="en"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg> Public site — home</div>
   <nav class="site-nav">
     <div class="wordmark">C.S.A.S <span>support</span></div>
     <ul><li>الرئيسية</li><li>من نحن</li><li>الخدمات</li><li>اتصل بنا</li></ul>
@@ -359,22 +391,22 @@ tbody tr:last-child td { border-bottom: 0; }
   <div class="hero">
     <div class="eyebrow">دعم لعملاء عقود الصيانة</div>
     <h1>إجابات من وثائقكم أنتم، لا من التخمين.</h1>
-    <p>اشرح المشكلة بالعربية أو بالعربيزي أو بالإنكليزية. المساعد يجيب فقط من مقالات قاعدة المعرفة المعتمدة ويذكر مصدره، ويحوّلك إلى مهندس فور أن يفقد اليقين.</p>
+    <p>يمكن شرح المشكلة بالعربية أو بالعربيزي أو بالإنكليزية. المساعد يجيب فقط من مقالات قاعدة المعرفة المعتمدة ويذكر مصدره، ويحيل الطلب إلى مهندس فور أن يفقد اليقين.</p>
     <div class="actions">
       <button class="btn btn-primary interactive"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg> الدخول برقم الهاتف</button>
       <button class="btn btn-secondary interactive">كيف يعمل</button>
     </div>
     <div class="stats">
-      <div class="stat"><strong>٦٢٪</strong><span>حُلّت دون مهندس</span></div><div class="stat"><strong>٤ دقائق</strong><span>وسيط أول رد</span></div><div class="stat"><strong>٥</strong><span>أشكال الكتابة المدعومة</span></div>
+      <div class="stat"><strong>62%</strong><span>حُلّت دون مهندس</span></div><div class="stat"><strong>4 دقائق</strong><span>وسيط أول رد</span></div><div class="stat"><strong>5</strong><span>أشكال الكتابة المدعومة</span></div>
     </div>
   </div>
 </section>
     <section class="screen">
-  <div class="screen-label"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Dashboard — ticket queue</div>
+  <div class="screen-label" lang="en"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Dashboard — ticket queue</div>
   <div class="dash">
     <aside class="side">
-      <h2>Desk</h2>
-      <a href="#" class="current"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> قائمة التذاكر</a>
+      <h2 lang="en">Desk</h2>
+      <a href="#" class="current"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> طلبات الدعم</a>
       <a href="#"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg> قاعدة المعرفة</a>
       <a href="#"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg> العملاء</a>
       <a href="#"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg> المراجعة</a>
@@ -382,42 +414,42 @@ tbody tr:last-child td { border-bottom: 0; }
     <div class="dash-main">
       <div class="dash-head">
         <div>
-          <h2>قائمة التذاكر</h2>
-          <p>المناوب: كريم س. · ٣ تتجاوز المهلة خلال ساعة</p>
+          <h2>طلبات الدعم</h2>
+          <p>الوردية الحالية · 3 طلبات تتجاوز المهلة خلال ساعة</p>
         </div>
         <button class="btn btn-secondary interactive">تصفية</button>
       </div>
       <table>
-        <thead><tr><th>الرقم</th><th>العميل</th><th>الموضوع</th><th>الشكل</th><th>الأولوية</th><th>المهلة</th></tr></thead>
+        <thead><tr><th>رقم الطلب</th><th>العميل</th><th>الموضوع</th><th>شكل الكتابة</th><th>الأولوية</th><th>المهلة</th></tr></thead>
         <tbody>
           <tr>
-            <td class="ref">CSAS-001241</td>
+            <td><bdi class="ref" dir="ltr">CSAS-001241</bdi></td>
             <td>سيدر فارما</td>
             <td>توقّف مزامنة المخزون</td>
             <td><span class="tag">عربيزي</span></td>
             <td>عالية</td>
-            <td><span class="sla sla-warn"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> ٠٠:١٢</span></td>
+            <td><span class="sla sla-warn"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> 00:12</span></td>
           </tr><tr>
-            <td class="ref">CSAS-001240</td>
+            <td><bdi class="ref" dir="ltr">CSAS-001240</bdi></td>
             <td>بيروت لوجستيك</td>
             <td>لا تطبع إيصالات التسليم</td>
             <td><span class="tag">لبنانية</span></td>
             <td>عاجلة</td>
             <td><span class="sla sla-danger"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg> تجاوزت</span></td>
           </tr><tr>
-            <td class="ref">CSAS-001238</td>
+            <td><bdi class="ref" dir="ltr">CSAS-001238</bdi></td>
             <td>طرابلس للنسيج</td>
             <td>رخصة صندوق ثانٍ</td>
             <td><span class="tag">إنكليزية</span></td>
             <td>منخفضة</td>
-            <td><span class="sla sla-ok"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> ٠٦:٤٠</span></td>
+            <td><span class="sla sla-ok"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> 06:40</span></td>
           </tr><tr>
-            <td class="ref">CSAS-001237</td>
+            <td><bdi class="ref" dir="ltr">CSAS-001237</bdi></td>
             <td>سيدر فارما</td>
             <td>عمود ناقص في التصدير</td>
             <td><span class="tag">فصحى</span></td>
             <td>متوسطة</td>
-            <td><span class="sla sla-ok"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> ٠٢:٥٥</span></td>
+            <td><span class="sla sla-ok"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> 02:55</span></td>
           </tr>
         </tbody>
       </table>
@@ -425,42 +457,42 @@ tbody tr:last-child td { border-bottom: 0; }
   </div>
 </section>
     <section class="screen">
-  <div class="screen-label"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg> Customer — conversation</div>
+  <div class="screen-label" lang="en"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg> Customer — conversation</div>
   <div class="chat">
     <div class="chat-head">
       <h2>الطابعة توقفت بعد التحديث</h2>
-      <p>CSAS-001240 · بيروت لوجستيك · فُتحت قبل ١١ دقيقة</p>
+      <p><bdi class="ref" dir="ltr">CSAS-001240</bdi> · بيروت لوجستيك · فُتحت قبل 11 دقيقة</p>
     </div>
 
     <div class="msg msg-customer">
       <div class="avatar"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></div>
       <div>
         <div class="who">العميل <span class="tag">لبنانية مع تبديل لغوي</span></div>
-        <div class="bubble">الطابعة عم تعطي error بعد التحديث، شو بدنا نعمل؟</div>
+        <div class="bubble" dir="auto">الطابعة عم تعطي error بعد التحديث، شو بدنا نعمل؟</div>
       </div>
     </div>
 
     <div class="msg">
       <div class="avatar"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg></div>
       <div>
-        <div class="who">المساعد <span class="confidence">الثقة ٠٫٨٨</span></div>
-        <div class="bubble">
-          بعد تحديث 4.1 لا تُعاد خدمة الطباعة تلقائيًا. أوقف خدمة الطباعة، ثم امسح مجلد قائمة الانتظار، ثم شغّلها من جديد — قالب إيصال التسليم لا يتأثر.
-          <div><span class="citation"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg> قاعدة المعرفة · KB-0412 · خدمة الطباعة بعد الترقية</span></div>
+        <div class="who">المساعد <span class="confidence">الثقة 0.88</span></div>
+        <div class="bubble" dir="auto">
+          بعد تحديث 4.1 لا تُعاد خدمة الطباعة تلقائيًا. الحل: إيقاف خدمة الطباعة، ثم مسح مجلد قائمة الانتظار، ثم تشغيلها من جديد — قالب إيصال التسليم لا يتأثر.
+          <div><span class="citation"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg> قاعدة المعرفة · <bdi class="ref" dir="ltr">KB-0412</bdi> · خدمة الطباعة بعد الترقية</span></div>
         </div>
       </div>
     </div>
 
     <div class="resolve">
-      <p>هل حلّ هذا المشكلة؟</p>
+      <p>هل حُلّت المشكلة؟</p>
       <div class="actions">
         <button class="btn btn-primary interactive"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> نعم، شكرًا</button>
-        <button class="btn btn-secondary interactive">لا، أريد موظفًا</button>
+        <button class="btn btn-secondary interactive">لا، أريد موظف دعم</button>
       </div>
     </div>
 
     <div class="composer">
-      <input placeholder="اكتب ردًا…" aria-label="اكتب ردًا…" />
+      <input dir="auto" placeholder="نص الرد…" aria-label="نص الرد…" />
       <button class="btn btn-primary interactive"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg> إرسال</button>
     </div>
   </div>

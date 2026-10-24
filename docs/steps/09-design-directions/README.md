@@ -1,7 +1,9 @@
 # Step 09 — Three design directions
 
 **Phase 3. Status: awaiting your choice.** This step is one of the two approval
-gates named in `CLAUDE.md`. Nothing in `apps/client` has been styled, and
+gates named in `CLAUDE.md`. Revised on 2026-10-24 against a sixth research
+report on Lebanese localization, which reversed the numeral decision and found
+three further defects — see §4.2 and §4.3. Nothing in `apps/client` has been styled, and
 step 10 does not begin until you pick one of the three below.
 
 ## Goal
@@ -24,6 +26,8 @@ ticket queue, and the customer conversation — in **light and dark**, in
 ```
 docs/design/
 ├── palettes.json                    the one source: 3 directions × 2 modes × 13 audited pairs
+├── LOCALIZATION.md                  the Arabic/English contract: 35 rules, each owned by a step
+├── REVIEW-PACK.md                   the Phase 6 native-speaker review, specified
 └── previews/
     ├── index.html                   the three side by side
     ├── operations-desk.html         ┐
@@ -171,13 +175,79 @@ engine already did the work, and *helping* it is what broke it. Verified by
 screenshot after the fix — sidebar on the right, table in the wide column,
 columns ordered right-to-left from الرقم.
 
-### 4.2 Arabic-Indic numerals
+### 4.2 Numerals — reversed after research
 
-The Arabic copy uses ٠١٢٣٤٥٦٧٨٩ in prose and statistics. Lebanese usage is
-genuinely mixed — Western digits are common in writing — so this is a decision
-to revisit with the native reviewers in Phase 6, not a settled one. Ticket
-references (`CSAS-001241`) stay Western in both languages because they are
-identifiers, not quantities.
+The Arabic copy originally used ٠١٢٣٤٥٦٧٨٩, on the reasoning that an Arabic
+interface should use Arabic digits. I flagged it as unsettled; a sixth research
+report,
+[`docs/research/localization-lebanon.md`](../../research/localization-lebanon.md),
+settled it the other way.
+
+Lebanese institutional Arabic uses **Western digits**: the Ministry of Finance's
+e-service displays `20/06/2026`, the Banking Control Commission's Arabic tables
+use Western digits for dates, circular numbers and percentages, and the 2026
+citizen-budget publication mixes Western digits with Arabic financial prose and
+`ل.ل.`. The interface copy was changed — `٦٢٪` → `62%`, `٠٠:١٢` → `00:12`,
+`٠٫٨٨` → `0.88`.
+
+Two things about this that matter more than the digits:
+
+**The evidence is moderate, not strong.** It establishes what those publishers
+do, not what Lebanese users prefer. The report explicitly declines to claim a
+national preference and records that no representative experiment comparing
+`123` with `١٢٣` exists. So this is a defensible default the reviewers can
+overturn, and `LOCALIZATION.md` says so.
+
+**Digits are not cosmetic here.** Arabizi uses digits as letters — `3` for ع,
+`7` for ح, `2` for ء. `ma 3am ye2bal el password` contains two digits and no
+numbers. The obvious implementation of a numeral preference, a global digit
+conversion, silently corrupts the main input this product exists to understand.
+The normalisation boundary is therefore the *field*, never the application.
+
+### 4.3 Three more findings from the same report
+
+**Identifiers were not isolated.** `CSAS-001240 · بيروت لوجستيك · فُتحت قبل 11
+دقيقة` was one pre-joined string with a Latin identifier at the head of an RTL
+sentence — the worst bidi shape there is, and untranslatable besides. It is now
+assembled from parts with the reference in `<bdi dir="ltr">`, which survives
+selection and copy; a CSS-only `direction: ltr` does not.
+
+**Arabic was inheriting Latin typography.** The label, eyebrow and table-header
+rules set `letter-spacing` and `text-transform: uppercase`, written for Latin
+and inherited by Arabic. Letter-spacing breaks the joining behaviour Arabic
+script depends on, and `text-transform` means nothing in Arabic while still
+mangling any Latin embedded in an Arabic string. Now switched off under
+`:lang(ar)`, with `font-synthesis: none` so a missing weight fails visibly
+instead of producing a smeared synthetic bold.
+
+**Message direction belonged to the interface, not the message.** Bubbles now
+carry `dir="auto"`, which demonstrates itself nicely: in the English preview the
+customer writes Arabizi and the bubble resolves LTR; in the Arabic preview it
+holds Arabic with an embedded Latin `error` and resolves RTL. One attribute,
+both outcomes. Critically, Arabizi is never tagged `lang="en"` — it is Arabic
+written in Latin characters, and that tag would tell a screen reader to
+pronounce it with an English voice.
+
+**And Arabic was being set in a Latin monospace face.** This one only showed up
+in a screenshot. The SLA cell, the conversation meta line and the eyebrow all
+used `--font-mono` — correct intent, aligned figures and an operational
+register — but IBM Plex Mono carries no Arabic, so `تجاوزت` and
+`بيروت لوجستيك` fell back to a system face and came apart at the joins
+(`تجا وزت`). The mono rules are kept; the variable they read is repointed under
+`:lang(ar)`, with `tabular-nums` so the figures still line up, and `.ref` pins
+the real mono explicitly because an identifier is always Latin. The three
+always-English preview labels are now tagged `lang="en"`, which is both the
+correct markup for a known English passage inside an Arabic document and what
+stops `:lang(ar)` from stripping a case transform that was right for Latin.
+
+Alongside those, the Arabic copy picked up the report's glossary
+(`طلبات الدعم` over `قائمة التذاكر`) and its gender-neutral wording — which
+turned up a real grammar error I had shipped: `هل حلّ هذا المشكلة؟` disagrees
+with the feminine `المشكلة`. It is now `هل حُلّت المشكلة؟`, which is both
+correct and impersonal.
+
+Eight tests now enforce these so they cannot drift back, and the full 35-rule
+contract is in [`docs/design/LOCALIZATION.md`](../../design/LOCALIZATION.md).
 
 ---
 
@@ -203,9 +273,20 @@ Thirteen woff2 files, 364 KB in total, copied verbatim from installed
 so the provenance of every byte is a dependency with a recorded licence and the
 directory is reproducible from a clean clone.
 
-All five families are **SIL Open Font License 1.1**, which permits this
-redistribution. `docs/design/previews/fonts/LICENCE.md` lists each file, its
-family, its source package and its copyright holder.
+All seven families are **SIL Open Font License 1.1** — verified by reading the
+`LICENSE` file inside each installed package rather than by assuming it, which
+is what rule TYPE-04 asks for and what the research explicitly marks as
+unverified in its own font shortlist. `docs/design/previews/fonts/LICENCE.md`
+records each file, package, version, licence line and copyright holder, with the
+command to reproduce the check.
+
+One departure is worth naming: the research's Arabic shortlist is Noto Sans
+Arabic, IBM Plex Sans Arabic, Cairo and Tajawal — all sans. **Noto Naskh Arabic,
+which the Dossier direction uses, is not on it.** The shortlist is framed there
+as candidates for evaluation around a sans interface, so this is a departure
+rather than a contradiction — but it means choosing Dossier is a decision made
+against the shortlist, and the Naskh face goes to the native reviewers as a
+specific question.
 
 Only the Arabic subset is taken for Arabic faces and only the Latin subset for
 Latin ones, which is why thirteen files come to 364 KB rather than several
@@ -251,7 +332,11 @@ $ npx vitest run --project tooling scripts/contrast-check.test.mjs
 
 $ npx vitest run --project tooling scripts/build-design-previews.test.mjs
  Test Files  1 passed (1)
-      Tests  10 passed (10)
+      Tests  18 passed (18)
+
+$ npm run verify
+ Test Files  31 passed (31)
+      Tests  520 passed (520)
 ```
 
 ---
@@ -263,10 +348,24 @@ $ npx vitest run --project tooling scripts/build-design-previews.test.mjs
   where `axe` runs in CI against real components.
 - **The previews are static HTML, not React.** They exist to decide, not to
   reuse; no markup from `docs/design/previews` is copied into `apps/client`.
-- **The Arabic copy is mine, not a native speaker's.** It reads correctly but it
-  is not reviewed. The two Lebanese reviewers in Phase 6 see the real strings.
+- **The Arabic copy is mine, not a native speaker's.** It now follows a
+  researched glossary, register and formatting policy, and one real agreement
+  error was caught in the process — but researched is not reviewed. The review
+  is specified in [`docs/design/REVIEW-PACK.md`](../../design/REVIEW-PACK.md),
+  which replaces "two Lebanese reviewers" with **five profiles**: Arabic-script,
+  Arabizi-heavy, English-dominant bilingual, a working support agent, and an
+  accessibility-technology user. The reason is in the research — a Lebanese
+  study of 227,059 messages across seven universities found script preference
+  varies between groups, so two reviewers who both write in Arabic script would
+  systematically miss the Arabizi users, who are this product's harder case.
 - **Only tested in Chrome.** Safari's handling of logical properties in grid is
   the one I would check before trusting §4.
+- **No screen reader has seen any of this.** NVDA, JAWS, VoiceOver on macOS and
+  iOS, and TalkBack are all unverified, and the research is firm that a pass on
+  one stack must never be generalised to another.
+- **`ar-LB` CLDR defaults are unaudited.** The research supplies a runtime audit
+  script for digits, month strings, hour cycle and date patterns; step 10 runs
+  it and commits the output rather than trusting the locale name.
 
 ---
 
@@ -292,4 +391,9 @@ serif in the queue"). Mixing is cheap now and expensive after step 10.
 - [x] No gradient, glow, blur, canvas, emoji icon or stock illustration
 - [x] Reduced-motion respected
 - [x] Previews open with no server and no network
+- [x] Numerals, bidi, Arabic typography and glossary follow the localization
+      research, with eight tests enforcing them
+- [x] Font licences verified against the distributed files, not assumed
+- [x] The Phase 6 linguistic review specified with coverage, checklist, rating
+      form and release gate
 - [ ] **A direction chosen** ← you

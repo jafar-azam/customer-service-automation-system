@@ -119,7 +119,7 @@ export const DIRECTIONS = {
 
 /* ── Content, in both scripts ────────────────────────────────────────────── */
 
-const COPY = {
+export const COPY = {
   en: {
     dir: 'ltr',
     lang: 'en',
@@ -169,12 +169,15 @@ const COPY = {
       ],
     ],
     chatTitle: 'Printer stopped after the update',
-    chatMeta: 'CSAS-001240 · Beirut Logistics · opened 11 minutes ago',
+    chatMetaRef: 'CSAS-001240',
+    chatMetaRest: 'Beirut Logistics · opened 11 minutes ago',
     customerMessage: 'el printer 3am ya3mel error ba3ed l update, chou badna na3mel?',
     customerForm: 'Arabizi',
     assistantMessage:
       'After the 4.1 update the spooler service does not restart on its own. Stop the print spooler, clear the queue folder, then start it again — the delivery-note template is unaffected.',
-    citation: 'Knowledge base · KB-0412 · Print spooler after upgrade',
+    citationLabel: 'Knowledge base',
+    citationRef: 'KB-0412',
+    citationTitle: 'Print spooler after upgrade',
     confidence: 'Confidence 0.88',
     askedSolved: 'Did this solve the problem?',
     yes: 'Yes, thank you',
@@ -184,24 +187,24 @@ const COPY = {
   },
   ar: {
     dir: 'rtl',
-    lang: 'ar',
+    lang: 'ar-LB',
     navItems: ['الرئيسية', 'من نحن', 'الخدمات', 'اتصل بنا'],
     heroEyebrow: 'دعم لعملاء عقود الصيانة',
     heroTitle: 'إجابات من وثائقكم أنتم، لا من التخمين.',
     heroBody:
-      'اشرح المشكلة بالعربية أو بالعربيزي أو بالإنكليزية. المساعد يجيب فقط من مقالات قاعدة المعرفة المعتمدة ويذكر مصدره، ويحوّلك إلى مهندس فور أن يفقد اليقين.',
+      'يمكن شرح المشكلة بالعربية أو بالعربيزي أو بالإنكليزية. المساعد يجيب فقط من مقالات قاعدة المعرفة المعتمدة ويذكر مصدره، ويحيل الطلب إلى مهندس فور أن يفقد اليقين.',
     heroPrimary: 'الدخول برقم الهاتف',
     heroSecondary: 'كيف يعمل',
     heroStats: [
-      ['حُلّت دون مهندس', '٦٢٪'],
-      ['وسيط أول رد', '٤ دقائق'],
-      ['أشكال الكتابة المدعومة', '٥'],
+      ['حُلّت دون مهندس', '62%'],
+      ['وسيط أول رد', '4 دقائق'],
+      ['أشكال الكتابة المدعومة', '5'],
     ],
-    queueTitle: 'قائمة التذاكر',
-    queueSubtitle: 'المناوب: كريم س. · ٣ تتجاوز المهلة خلال ساعة',
-    columns: ['الرقم', 'العميل', 'الموضوع', 'الشكل', 'الأولوية', 'المهلة'],
+    queueTitle: 'طلبات الدعم',
+    queueSubtitle: 'الوردية الحالية · 3 طلبات تتجاوز المهلة خلال ساعة',
+    columns: ['رقم الطلب', 'العميل', 'الموضوع', 'شكل الكتابة', 'الأولوية', 'المهلة'],
     rows: [
-      ['CSAS-001241', 'سيدر فارما', 'توقّف مزامنة المخزون', 'عربيزي', 'عالية', '٠٠:١٢', 'warn'],
+      ['CSAS-001241', 'سيدر فارما', 'توقّف مزامنة المخزون', 'عربيزي', 'عالية', '00:12', 'warn'],
       [
         'CSAS-001240',
         'بيروت لوجستيك',
@@ -211,24 +214,32 @@ const COPY = {
         'تجاوزت',
         'danger',
       ],
-      ['CSAS-001238', 'طرابلس للنسيج', 'رخصة صندوق ثانٍ', 'إنكليزية', 'منخفضة', '٠٦:٤٠', 'ok'],
-      ['CSAS-001237', 'سيدر فارما', 'عمود ناقص في التصدير', 'فصحى', 'متوسطة', '٠٢:٥٥', 'ok'],
+      ['CSAS-001238', 'طرابلس للنسيج', 'رخصة صندوق ثانٍ', 'إنكليزية', 'منخفضة', '06:40', 'ok'],
+      ['CSAS-001237', 'سيدر فارما', 'عمود ناقص في التصدير', 'فصحى', 'متوسطة', '02:55', 'ok'],
     ],
     chatTitle: 'الطابعة توقفت بعد التحديث',
-    chatMeta: 'CSAS-001240 · بيروت لوجستيك · فُتحت قبل ١١ دقيقة',
+    chatMetaRef: 'CSAS-001240',
+    chatMetaRest: 'بيروت لوجستيك · فُتحت قبل 11 دقيقة',
     customerMessage: 'الطابعة عم تعطي error بعد التحديث، شو بدنا نعمل؟',
     customerForm: 'لبنانية مع تبديل لغوي',
     assistantMessage:
-      'بعد تحديث 4.1 لا تُعاد خدمة الطباعة تلقائيًا. أوقف خدمة الطباعة، ثم امسح مجلد قائمة الانتظار، ثم شغّلها من جديد — قالب إيصال التسليم لا يتأثر.',
-    citation: 'قاعدة المعرفة · KB-0412 · خدمة الطباعة بعد الترقية',
-    confidence: 'الثقة ٠٫٨٨',
-    askedSolved: 'هل حلّ هذا المشكلة؟',
+      'بعد تحديث 4.1 لا تُعاد خدمة الطباعة تلقائيًا. الحل: إيقاف خدمة الطباعة، ثم مسح مجلد قائمة الانتظار، ثم تشغيلها من جديد — قالب إيصال التسليم لا يتأثر.',
+    citationLabel: 'قاعدة المعرفة',
+    citationRef: 'KB-0412',
+    citationTitle: 'خدمة الطباعة بعد الترقية',
+    confidence: 'الثقة 0.88',
+    askedSolved: 'هل حُلّت المشكلة؟',
     yes: 'نعم، شكرًا',
-    no: 'لا، أريد موظفًا',
-    composer: 'اكتب ردًا…',
+    no: 'لا، أريد موظف دعم',
+    composer: 'نص الرد…',
     send: 'إرسال',
   },
 };
+
+/* `lang` carries a region (`ar-LB`), so equality against 'ar' would silently
+   stop matching. Compare the primary subtag, the way language negotiation does
+   and the way the CSS `:lang(ar)` selector already behaves. */
+const isArabic = (copy) => copy.lang.split('-')[0] === 'ar';
 
 /* ── Icons: inline SVG, never emoji ──────────────────────────────────────── */
 
@@ -374,7 +385,39 @@ table { width: 100%; border-collapse: collapse; font-size: ${String(scale.densit
 th { text-align: start; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); font-weight: 600; padding: 0 calc(var(--unit) * 2) calc(var(--unit) * 1.5); border-bottom: 1px solid var(--border); white-space: nowrap; }
 td { padding: ${String(rowPad)}px calc(var(--unit) * 2); border-bottom: 1px solid var(--border); vertical-align: middle; }
 tbody tr:last-child td { border-bottom: 0; }
-.ref { font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); }
+/* An identifier is an LTR token wherever it appears. Isolated rather than
+   merely direction-set, so the bidi algorithm cannot let surrounding Arabic
+   punctuation migrate across its edges and change what the reader sees it as.
+   The markup is <bdi>, which isolates on its own; this is belt and braces for
+   the copy path and for a future <span class="ref">. */
+.ref { font-family: 'CSAS Mono', ui-monospace, monospace; font-size: 12px; color: var(--text-muted); direction: ltr; unicode-bidi: isolate; }
+
+/* Arabic typography, from docs/research/localization-lebanon.md (TYPE-01).
+   Letter-spacing breaks the joining behaviour that Arabic script depends on,
+   and text-transform: uppercase has no meaning in Arabic while still
+   mangling any Latin embedded in an Arabic string. Both are inherited from the
+   label, header and eyebrow rules above, which were written for Latin; this
+   switches them off for Arabic rather than removing them everywhere.
+
+   :lang(ar) matches ar-LB too - that is how the selector is defined, and
+   it is why the regional tag on <html> costs nothing here. */
+:lang(ar) { letter-spacing: normal; text-transform: none; }
+
+/* Never fake a weight. Both families ship a real 400 and 600; if a face fails
+   to load, this makes it visible instead of substituting a smeared synthetic
+   bold, which on Arabic destroys the letterforms rather than thickening them. */
+:lang(ar) { font-synthesis: none; }
+
+/* IBM Plex Mono carries no Arabic, so any Arabic inside a monospace rule falls
+   back to whatever the system supplies - which is how the overdue label and the
+   conversation meta line ended up set in a face that broke their joins. The
+   mono rules are right about intent (aligned figures, an operational register),
+   so rather than stripping them, the variable they read is repointed for
+   Arabic. Latin-only tokens opt back in explicitly below. */
+:lang(ar) { --font-mono: 'CSAS Arabic', 'CSAS Latin', system-ui, sans-serif; }
+
+/* Figures still have to line up in a column once the mono face is gone. */
+.sla, .ref, .stat strong { font-variant-numeric: tabular-nums; }
 
 .tag { display: inline-flex; align-items: center; gap: calc(var(--unit) * 0.75); font-size: 12px; padding: 2px calc(var(--unit) * 1.25); border-radius: var(--radius); background: var(--surface-muted); color: var(--text-muted); white-space: nowrap; }
 .sla { display: inline-flex; align-items: center; gap: calc(var(--unit) * 0.75); font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
@@ -429,7 +472,7 @@ tbody tr:last-child td { border-bottom: 0; }
 
 function heroScreen(copy) {
   return `<section class="screen">
-  <div class="screen-label">${icons.spark} Public site — home</div>
+  <div class="screen-label" lang="en">${icons.spark} Public site — home</div>
   <nav class="site-nav">
     <div class="wordmark">C.S.A.S <span>support</span></div>
     <ul>${copy.navItems.map((item) => `<li>${item}</li>`).join('')}</ul>
@@ -452,14 +495,14 @@ function heroScreen(copy) {
 function dashboardScreen(copy) {
   const slaIcon = { ok: icons.clock, warn: icons.clock, danger: icons.alert };
   return `<section class="screen">
-  <div class="screen-label">${icons.clock} Dashboard — ticket queue</div>
+  <div class="screen-label" lang="en">${icons.clock} Dashboard — ticket queue</div>
   <div class="dash">
     <aside class="side">
-      <h2>Desk</h2>
+      <h2 lang="en">Desk</h2>
       <a href="#" class="current">${icons.clock} ${copy.queueTitle}</a>
-      <a href="#">${icons.book} ${copy.lang === 'ar' ? 'قاعدة المعرفة' : 'Knowledge base'}</a>
-      <a href="#">${icons.user} ${copy.lang === 'ar' ? 'العملاء' : 'Customers'}</a>
-      <a href="#">${icons.alert} ${copy.lang === 'ar' ? 'المراجعة' : 'Review queue'}</a>
+      <a href="#">${icons.book} ${isArabic(copy) ? 'قاعدة المعرفة' : 'Knowledge base'}</a>
+      <a href="#">${icons.user} ${isArabic(copy) ? 'العملاء' : 'Customers'}</a>
+      <a href="#">${icons.alert} ${isArabic(copy) ? 'المراجعة' : 'Review queue'}</a>
     </aside>
     <div class="dash-main">
       <div class="dash-head">
@@ -467,7 +510,7 @@ function dashboardScreen(copy) {
           <h2>${copy.queueTitle}</h2>
           <p>${copy.queueSubtitle}</p>
         </div>
-        <button class="btn btn-secondary interactive">${copy.lang === 'ar' ? 'تصفية' : 'Filter'}</button>
+        <button class="btn btn-secondary interactive">${isArabic(copy) ? 'تصفية' : 'Filter'}</button>
       </div>
       <table>
         <thead><tr>${copy.columns.map((column) => `<th>${column}</th>`).join('')}</tr></thead>
@@ -475,7 +518,7 @@ function dashboardScreen(copy) {
           ${copy.rows
             .map(
               ([ref, customer, subject, form, priority, sla, state]) => `<tr>
-            <td class="ref">${ref}</td>
+            <td><bdi class="ref" dir="ltr">${ref}</bdi></td>
             <td>${customer}</td>
             <td>${subject}</td>
             <td><span class="tag">${form}</span></td>
@@ -493,28 +536,28 @@ function dashboardScreen(copy) {
 
 function chatScreen(copy) {
   return `<section class="screen">
-  <div class="screen-label">${icons.spark} Customer — conversation</div>
+  <div class="screen-label" lang="en">${icons.spark} Customer — conversation</div>
   <div class="chat">
     <div class="chat-head">
       <h2>${copy.chatTitle}</h2>
-      <p>${copy.chatMeta}</p>
+      <p><bdi class="ref" dir="ltr">${copy.chatMetaRef}</bdi> · ${copy.chatMetaRest}</p>
     </div>
 
     <div class="msg msg-customer">
       <div class="avatar">${icons.user}</div>
       <div>
-        <div class="who">${copy.lang === 'ar' ? 'العميل' : 'Customer'} <span class="tag">${copy.customerForm}</span></div>
-        <div class="bubble">${copy.customerMessage}</div>
+        <div class="who">${isArabic(copy) ? 'العميل' : 'Customer'} <span class="tag">${copy.customerForm}</span></div>
+        <div class="bubble" dir="auto">${copy.customerMessage}</div>
       </div>
     </div>
 
     <div class="msg">
       <div class="avatar">${icons.spark}</div>
       <div>
-        <div class="who">${copy.lang === 'ar' ? 'المساعد' : 'Assistant'} <span class="confidence">${copy.confidence}</span></div>
-        <div class="bubble">
+        <div class="who">${isArabic(copy) ? 'المساعد' : 'Assistant'} <span class="confidence">${copy.confidence}</span></div>
+        <div class="bubble" dir="auto">
           ${copy.assistantMessage}
-          <div><span class="citation">${icons.book} ${copy.citation}</span></div>
+          <div><span class="citation">${icons.book} ${copy.citationLabel} · <bdi class="ref" dir="ltr">${copy.citationRef}</bdi> · ${copy.citationTitle}</span></div>
         </div>
       </div>
     </div>
@@ -528,7 +571,7 @@ function chatScreen(copy) {
     </div>
 
     <div class="composer">
-      <input placeholder="${copy.composer}" aria-label="${copy.composer}" />
+      <input dir="auto" placeholder="${copy.composer}" aria-label="${copy.composer}" />
       <button class="btn btn-primary interactive">${icons.send} ${copy.send}</button>
     </div>
   </div>
@@ -573,7 +616,7 @@ function page(id, direction, palette) {
   const ar = COPY.ar;
 
   return `<!doctype html>
-<html lang="en" dir="ltr" data-theme="light">
+<html lang="en-LB" dir="ltr" data-theme="light">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -601,7 +644,7 @@ function page(id, direction, palette) {
     ${dashboardScreen(en)}
     ${chatScreen(en)}
   </div>
-  <div data-screens="ar" dir="rtl" lang="ar" hidden>
+  <div data-screens="ar" dir="rtl" lang="ar-LB" hidden>
     ${heroScreen(ar)}
     ${dashboardScreen(ar)}
     ${chatScreen(ar)}

@@ -2,7 +2,7 @@ import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { copyFonts, DIRECTIONS, FONT_SOURCES, OUT } from './build-design-previews.mjs';
+import { COPY, copyFonts, DIRECTIONS, FONT_SOURCES, OUT } from './build-design-previews.mjs';
 
 const palettes = JSON.parse(readFileSync('docs/design/palettes.json', 'utf8'));
 
@@ -114,6 +114,111 @@ describe('the generated previews', () => {
     for (const page of pages) {
       expect(page.html).not.toMatch(/https?:\/\/(fonts|cdn)/i);
       expect(page.html).toMatch(/url\('fonts\//);
+    }
+  });
+});
+
+/* ── The localization contract ────────────────────────────────────────────
+   Rules from `docs/research/localization-lebanon.md`, enforced here so the
+   previews cannot drift back. Each test names the rule id it implements;
+   `docs/design/LOCALIZATION.md` maps the full set to the step that enforces
+   it. These are the ones a static check can reach. */
+describe('localization rules', () => {
+  const pages = palettes.directions.map((direction) => ({
+    id: direction.id,
+    html: readFileSync(join(OUT, `${direction.id}.html`), 'utf8'),
+  }));
+  const css = (html) => html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
+  const arabicCopy = Object.entries(COPY.ar)
+    .filter(([key]) => key !== 'dir' && key !== 'lang')
+    .map(([, value]) => JSON.stringify(value))
+    .join(' ');
+
+  /* The research's own headline recommendation, and a reversal of what this
+     step originally shipped: Lebanese government and financial-regulatory
+     Arabic uses Western digits, so the Arabic interface does too. The
+     optional Arabic-Indic *display preference* it allows is a step 10
+     feature; it must never reach identifiers or user-authored text. */
+  it('LOC-06/07 — uses Western digits in Arabic interface copy', () => {
+    const arabicIndic = [...arabicCopy].filter((character) => /[٠-٩۰-۹]/.test(character));
+    expect(arabicIndic).toEqual([]);
+  });
+
+  /* `٪` and `٫` travel with Arabic-Indic digits; mixing `62٪` with Western
+     digits is the inconsistency the decision table warns about. */
+  it('LOC-06 — uses Western percent and decimal signs to match', () => {
+    expect(arabicCopy).not.toMatch(/[٪٫٬]/);
+  });
+
+  it('LOC-01 — declares a regional language tag and an explicit direction', () => {
+    for (const page of pages) {
+      expect(page.html).toContain('<html lang="en-LB" dir="ltr"');
+      expect(page.html).toContain('lang="ar-LB"');
+      expect(page.html).toContain('dir="rtl"');
+    }
+  });
+
+  /* TYPE-01. Letter-spacing breaks Arabic joining and `text-transform` is
+     meaningless in Arabic while still mangling embedded Latin. The Latin
+     rules that set both are kept; they are switched off for Arabic. */
+  it('TYPE-01 — switches off tracking and case transforms for Arabic', () => {
+    for (const page of pages) {
+      expect(css(page.html), page.id).toMatch(
+        /:lang\(ar\)[^}]*letter-spacing:\s*normal[^}]*text-transform:\s*none/,
+      );
+      expect(css(page.html), page.id).toMatch(/:lang\(ar\)[^}]*font-synthesis:\s*none/);
+    }
+  });
+
+  /* BIDI-02. Every ticket and article reference is an isolated LTR token in
+     the markup, not only in CSS — so it survives selection, copy and export,
+     which a CSS-only fix does not. */
+  it('BIDI-02 — isolates every identifier as an LTR token', () => {
+    for (const page of pages) {
+      const references = [...page.html.matchAll(/(CSAS-\d{6}|KB-\d{4})/g)].map((match) => match[1]);
+      expect(references.length, page.id).toBeGreaterThan(0);
+      for (const reference of new Set(references)) {
+        const unisolated = new RegExp(`(?<!<bdi class="ref" dir="ltr">)${reference}`, 'g');
+        const loose = [...page.html.matchAll(unisolated)];
+        expect(loose, `${page.id} renders ${reference} outside a <bdi>`).toEqual([]);
+      }
+    }
+  });
+
+  /* BIDI-03. Direction belongs to the message, not to the interface: in the
+     English preview the customer writes Arabizi and the bubble must resolve
+     LTR; in the Arabic preview it holds Arabic with embedded Latin and must
+     resolve RTL. One attribute, both outcomes. */
+  it('BIDI-03 — gives user text automatic direction', () => {
+    for (const page of pages) {
+      expect(page.html, page.id).toMatch(/class="bubble" dir="auto"/);
+      expect(page.html, page.id).toMatch(/<input dir="auto"/);
+    }
+  });
+
+  /* The research is explicit that `dir="auto"` is direction handling and not
+     language detection: Arabizi is Latin-script Arabic, and tagging it
+     `lang="en"` tells a screen reader to read it aloud as English. */
+  it('BIDI-03 — never tags a message as English by its script', () => {
+    for (const page of pages) {
+      expect(page.html, page.id).not.toMatch(/class="bubble"[^>]*lang="en/);
+    }
+  });
+
+  /* MSG-01. An identifier buried inside a pre-joined sentence is both the
+     worst bidi shape and untranslatable. Both strings that used to do it are
+     now assembled from parts. */
+  it('MSG-01 — does not pre-join identifiers into translated sentences', () => {
+    for (const [language, copy] of Object.entries(COPY)) {
+      for (const value of Object.values(copy)) {
+        if (typeof value !== 'string') continue;
+        const reference = /(CSAS-\d{6}|KB-\d{4})/.exec(value);
+        if (!reference) continue;
+        /* Carrying an identifier is fine; the field must then be *only* the
+           identifier, so the surrounding sentence stays translatable and the
+           token can be isolated where it is rendered. */
+        expect(value.trim(), `${language}: "${value}" embeds an identifier`).toBe(reference[1]);
+      }
     }
   });
 });
