@@ -8,6 +8,7 @@ import { DisabledErrorTracker, type ErrorTracker } from './observability/error-t
 import { HealthRegistry } from './observability/health.js';
 import { createMetrics, type Metrics } from './observability/metrics.js';
 import { authRouter } from './routes/auth.js';
+import { customerAuthRouter } from './routes/customer-auth.js';
 import { healthRouter } from './routes/health.js';
 import { metricsRouter } from './routes/metrics.js';
 import { versionRouter } from './routes/version.js';
@@ -75,6 +76,9 @@ export function createApp({
   app.use(metricsRouter(metrics));
   app.use('/api', healthRouter({ registry: health, version, startedAt }));
   app.use('/api', versionRouter({ name: 'csas-server', version, environment: env.NODE_ENV }));
+  /* Mounted first: Express matches in order, and `/api/auth/customer/...`
+     must never fall through to a staff route. */
+  app.use('/api/auth/customer', customerAuthRouter({ env, logger }));
   app.use('/api/auth', authRouter({ env, logger }));
 
   app.use(notFoundHandler);

@@ -5,6 +5,7 @@ import {
   createMongoHealthCheck,
   disconnectFromDatabase,
 } from './db/connection.js';
+import { connectToRedis, createRedisHealthCheck, disconnectFromRedis } from './db/redis.js';
 import { DisabledErrorTracker, LoggingErrorTracker } from './observability/error-tracking.js';
 import { createLogger } from './observability/logger.js';
 import { createMlHealthCheck } from './observability/dependencies.js';
@@ -40,7 +41,13 @@ function main(): void {
      absence must not stop traffic this server can still serve. Redis joins as a
      critical check in step 14. */
   app.health.register(createMongoHealthCheck());
+  /* Also critical: without Redis the OTP rate limits cannot be enforced, and
+     an endpoint that sends messages with its limits disabled is worse than one
+     that is down (step 08). */
+  app.health.register(createRedisHealthCheck());
   app.health.register(createMlHealthCheck(env.ML_SERVICE_URL));
+
+  connectToRedis({ url: env.REDIS_URL, logger });
 
   /* The connection is started but not awaited: the server must come up and
      answer /api/health even when the database is down, so that readiness can
@@ -82,7 +89,7 @@ function main(): void {
     timer.unref();
 
     server.close(() => {
-      void disconnectFromDatabase()
+      void Promise.all([disconnectFromDatabase(), disconnectFromRedis()])
         .catch(() => undefined)
         .finally(() => {
           logger.info('shutdown complete');

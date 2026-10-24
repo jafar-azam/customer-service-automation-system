@@ -96,11 +96,106 @@ export async function verifyAccessToken(
     const { sub, role, sid } = payload;
     if (typeof sub !== 'string' || typeof sid !== 'string') return undefined;
     if (role !== 'agent' && role !== 'admin') return undefined;
+    /* And it must not be a customer token that happens to carry a role. */
+    if (payload['kind'] !== undefined) return undefined;
 
     return { ...payload, sub, role, sid };
   } catch {
     /* Expired, wrong signature, malformed — all the same answer to the caller:
        this token is not usable. The reason goes in the log, not the response. */
+    return undefined;
+  }
+}
+
+/** A customer session: same mechanics, different subject and no role. */
+export interface CreateCustomerSessionOptions {
+  readonly customerId: mongoose.Types.ObjectId | string;
+  readonly userAgent?: string;
+  readonly ip?: string;
+  readonly ttlSeconds?: number;
+}
+
+export async function createCustomerSession({
+  customerId,
+  userAgent,
+  ip,
+  ttlSeconds = REFRESH_TOKEN_TTL_SECONDS,
+}: CreateCustomerSessionOptions): Promise<CreatedSession> {
+  const refreshToken = randomBytes(REFRESH_TOKEN_BYTES).toString('base64url');
+  const familyId = randomUUID();
+  const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
+
+  await Session.create({
+    subjectType: 'customer',
+    customerId,
+    familyId,
+    tokenHash: hashRefreshToken(refreshToken),
+    expiresAt,
+    ...(userAgent === undefined ? {} : { userAgent: userAgent.slice(0, 400) }),
+    ...(ip === undefined ? {} : { ip }),
+  });
+
+  return { refreshToken, familyId, expiresAt };
+}
+
+export interface CustomerTokenClaims extends JWTPayload {
+  sub: string;
+  sid: string;
+  /* No `role`. A customer token that could carry one is a token that could be
+     forged into a staff token if a verifier ever got sloppy; the absence is
+     checked on the way back in. */
+  kind: 'customer';
+}
+
+export async function issueCustomerAccessToken({
+  customerId,
+  familyId,
+  secret,
+  ttlSeconds = ACCESS_TOKEN_TTL_SECONDS,
+}: {
+  customerId: string;
+  familyId: string;
+  secret: string;
+  ttlSeconds?: number;
+}): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  return new SignJWT({ sid: familyId, kind: 'customer' })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setSubject(customerId)
+    .setIssuedAt(now)
+    .setExpirationTime(now + ttlSeconds)
+    .setIssuer('csas')
+    .setAudience('csas-api')
+    .sign(new TextEncoder().encode(secret));
+}
+
+/**
+ * Verifies a customer token.
+ *
+ * The `kind` claim is required and must be exactly `customer`. A staff token
+ * has no `kind`, so it cannot pass here — and the staff verifier requires a
+ * `role`, which this one never carries. Neither can be used as the other, and
+ * both directions are tested.
+ */
+export async function verifyCustomerAccessToken(
+  token: string,
+  secret: string,
+): Promise<CustomerTokenClaims | undefined> {
+  try {
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(secret), {
+      issuer: 'csas',
+      audience: 'csas-api',
+      algorithms: ['HS256'],
+    });
+
+    const { sub, sid } = payload;
+    if (typeof sub !== 'string' || typeof sid !== 'string') return undefined;
+    if (payload['kind'] !== 'customer') return undefined;
+    /* A customer token must never carry a role. */
+    if (payload['role'] !== undefined) return undefined;
+
+    return { ...payload, sub, sid, kind: 'customer' };
+  } catch {
     return undefined;
   }
 }
@@ -141,11 +236,18 @@ export async function createSession({
   return { refreshToken, familyId, expiresAt };
 }
 
+/** Which kind of session was rotated — staff and customers share the path. */
+export interface RotatedSubject {
+  readonly subjectType: 'staff' | 'customer';
+  /** The staff or customer id, whichever the session belongs to. */
+  readonly subjectId: string;
+}
+
 export type RotationOutcome =
-  | { readonly kind: 'rotated'; readonly session: CreatedSession; readonly staffId: string }
+  | ({ readonly kind: 'rotated'; readonly session: CreatedSession } & RotatedSubject)
   | { readonly kind: 'unknown' }
   | { readonly kind: 'expired' }
-  | { readonly kind: 'reuse_detected'; readonly familyId: string; readonly staffId: string };
+  | ({ readonly kind: 'reuse_detected'; readonly familyId: string } & RotatedSubject);
 
 /**
  * Exchanges a refresh token for a new one.
@@ -174,7 +276,10 @@ export async function rotateSession(
         return;
       }
 
-      const staffId = String(existing.staffId);
+      /* The same path serves both subjects: a customer session carries a
+         customerId and no staffId, and reuse detection does not care which. */
+      const subjectType = existing.subjectType;
+      const subjectId = String(subjectType === 'staff' ? existing.staffId : existing.customerId);
 
       /* Already rotated or already revoked — and presented anyway. The real
          client moved on; this is a copy. */
@@ -184,7 +289,7 @@ export async function rotateSession(
           { $set: { revokedAt: new Date(), revokedReason: 'reuse_detected' } },
           { session: dbSession },
         );
-        outcome = { kind: 'reuse_detected', familyId: existing.familyId, staffId };
+        outcome = { kind: 'reuse_detected', familyId: existing.familyId, subjectType, subjectId };
         return;
       }
 
@@ -195,11 +300,9 @@ export async function rotateSession(
 
       const refreshToken = randomBytes(REFRESH_TOKEN_BYTES).toString('base64url');
       const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
-      /* A staff session always has a staffId — the schema allows it to be
-         absent because the same collection carries customer sessions from
-         step 08. Checked rather than asserted: a row without one is corrupt,
-         and continuing would create an unattributable session. */
-      if (!existing.staffId) {
+      /* A session must identify its subject. A row with neither id is
+         corrupt, and continuing would create an unattributable session. */
+      if (subjectId === 'undefined') {
         outcome = { kind: 'unknown' };
         return;
       }
@@ -213,8 +316,9 @@ export async function rotateSession(
       await Session.create(
         [
           {
-            subjectType: 'staff' as const,
-            staffId: existing.staffId,
+            subjectType,
+            ...(existing.staffId ? { staffId: existing.staffId } : {}),
+            ...(existing.customerId ? { customerId: existing.customerId } : {}),
             /* Same family: that is what makes reuse detectable later. */
             familyId: existing.familyId,
             tokenHash: hashRefreshToken(refreshToken),
@@ -228,7 +332,8 @@ export async function rotateSession(
 
       outcome = {
         kind: 'rotated',
-        staffId,
+        subjectType,
+        subjectId,
         session: { refreshToken, familyId: existing.familyId, expiresAt },
       };
     });

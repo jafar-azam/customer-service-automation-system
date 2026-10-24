@@ -20,8 +20,8 @@ reports anything that does not hold.
 L2 · A0x = OWASP Top 10 2021 · API0x = OWASP API Security Top 10 2023 ·
 LLM0x = OWASP Top 10 for LLM Applications 2025.
 
-Counts as of step 07, re-derived from the table by `npm run audit:checklist`
-rather than written by hand: **56 done, 54 planned, 1 accepted**. (The numbered
+Counts as of step 08, re-derived from the table by `npm run audit:checklist`
+rather than written by hand: **73 done, 45 planned, 1 accepted**. (The numbered
 rows count one `accepted`; the five further acceptances have no requirement id
 because they are infrastructure decisions, and are listed at the end.)
 
@@ -42,16 +42,16 @@ because they are infrastructure decisions, and are listed at the end.)
 
 | # | Requirement | Std | Control | Code | Test | Status |
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-| 2.1 | Code stored only as a hash | ASVS 2.5 | Hashed at creation; plaintext never persisted | `services/otp` | database document contains no code | step 08 |
-| 2.2 | 6 digits, 5-minute expiry, single use, max 5 attempts | ASVS 2.5 | Enforced server-side, atomically | `services/otp` | expiry, reuse and attempt-cap tests | step 08 |
-| 2.3 | Identical response whether or not the number is registered | ASVS 2.2 | One response shape for start | `services/otp` | response equality test | step 08 |
-| 2.4 | Layered atomic rate limits (number, IP, prefix) | API04 | Redis counters, never read-modify-write | `services/otp` | concurrent requests cannot exceed the limit | step 08 |
-| 2.5 | Destination allow-list and full-number validation | — | Lebanon only by default; full mobile validated, not a `+961` prefix | `services/messaging` | malformed and out-of-country numbers refused | step 08 |
-| 2.6 | Resend cooldown | — | 30–60 s, plus a rolling allowance | `services/otp` | second send inside the window refused | step 08 |
-| 2.7 | Daily/hourly send caps with a kill switch | — | Application-level budget, hard stop not an alert | `services/messaging` | cap reached → sends refused | step 08 |
-| 2.8 | **The code never appears in a log, metric or error** | ASVS 7.1 | Never passed to the logger; redaction as a second line | `services/otp` | captured logs asserted to not contain the code | step 08 |
+| 2.1 | Code stored only as a hash | ASVS 2.5 | Peppered SHA-256; plaintext never persisted | `services/auth/otp.ts` | "stores the code only as a hash" | **done** |
+| 2.2 | 6 digits, 5-minute expiry, single use, max 5 attempts | ASVS 2.5 | `randomInt`; single use by update filter; attempt counted before comparison | `services/auth/otp.ts` | five tests incl. "counts the attempt before comparing" | **done** |
+| 2.3 | Identical response whether or not the number is registered | ASVS 2.2 | One 202 for sent, unknown, disabled and suppressed | `services/auth/otp.ts` | "answers identically for a number that is not a customer" | **done** |
+| 2.4 | Layered atomic rate limits (number, IP, prefix) | API04 | Redis `INCR`, most specific layer charged first | `services/rate-limit.ts` | "cannot be beaten by parallel requests"; 16 limiter tests | **done** |
+| 2.5 | Destination allow-list and full-number validation | — | Parsing *is* the allow-list: a number that will not parse is never sent to | `packages/shared/src/phone.ts` | "refuses a number outside the allowed country" | **done** |
+| 2.6 | Resend cooldown | — | 45 seconds, charged before every other layer | `services/rate-limit.ts` | "refuses a second code inside the resend cooldown"; verified live | **done** |
+| 2.7 | Daily/hourly send caps with a kill switch | — | Counted only for real sends; the switch has no TTL | `services/rate-limit.ts` | "sends nothing at all while the kill switch is on"; "does not expire on a timer" | **done** |
+| 2.8 | **The code never appears in a log, metric or error** | ASVS 7.1 | Never passed to the logger; the body is redacted outside DEMO_MODE | `services/providers/messaging.ts` | "never writes the code to the log" | **done** |
 | 2.9 | Conversion monitoring (sends up, verifications down) | — | Metric + dashboard alert | `services/otp` | ratio metric emitted | step 30 |
-| 2.10 | No unauthenticated "send to arbitrary number" endpoint | API05 | No such route exists | routes | route inventory test | step 08 |
+| 2.10 | No unauthenticated "send to arbitrary number" endpoint | API05 | The only send path requires a registered, active customer | `services/auth/otp.ts` | "sends nothing for a customer who has been deactivated" | **done** |
 
 ## 3. Sessions
 
@@ -180,7 +180,7 @@ because they are infrastructure decisions, and are listed at the end.)
 
 | # | Requirement | Std | Control | Code | Test | Status |
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-| 13.1 | Rate limits on all routes, strict on sensitive ones | API04 | Redis-backed limiter | `http/rate-limit` | limit enforced; headers correct | step 08 |
+| 13.1 | Rate limits on all routes, strict on sensitive ones | API04 | Redis limiter, wired into the OTP endpoints; other routes still to follow | `services/rate-limit.ts` | 16 limiter tests; `Retry-After` verified live | step 11 |
 | 13.2 | Bot protection on the contact form | — | Challenge plus honeypot | `routes/contact` | automated submission refused | step 32 |
 | 13.3 | Metric labels bounded | — | Route pattern or `unmatched` | `observability/metrics.ts` | "collapses unmatched paths" | **done** |
 | 13.4 | Jobs idempotent and bounded | — | Idempotency keys, dead-letter queue | `jobs/*` | duplicate job runs once | step 14 |
@@ -197,6 +197,24 @@ because they are infrastructure decisions, and are listed at the end.)
 | 14.5 | Containers run as non-root | A05 | `node`, `mlsvc` | Dockerfiles | verified live: `whoami` per container | **done** |
 | 14.6 | Third-party licence report | — | Generated at release | `docs/` | report produced and reviewed | step 37 |
 | 14.7 | Every dataset record carries its licence and publishability | — | `provenance` required on knowledge and dataset records | `db/models/knowledge.ts` | import tests assert licence, publishability and lineage | **done** |
+
+## 16. The contract gate
+
+| # | Requirement | Std | Control | Code | Test | Status |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| 16.1 | Entitlement decided from the contract dates, not a cached status | — | `status` is a nightly cache; dates are the truth | `services/contracts.ts` | "reads the dates rather than the stored status" | **done** |
+| 16.2 | A cancelled contract is never honoured | — | Excluded by status, since cancellation is a decision | `services/contracts.ts` | "ignores a cancelled contract even if its dates still cover today" | **done** |
+| 16.3 | An expired contract is reported, not an authentication failure | — | The session opens; the client decides | `routes/customer-auth.ts` | "lets an expired customer sign in, and says the contract expired" | **done** |
+| 16.4 | A customer cannot see another customer entitlement | API01 | Scoped by the authenticated subject | `services/contracts.ts` | "does not see another customer contract" | **done** |
+
+## 17. Customer sessions
+
+| # | Requirement | Std | Control | Code | Test | Status |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| 17.1 | Customer and staff tokens are mutually unusable | API05 | `kind` required on one, `role` on the other; each verifier refuses the other | `services/auth/tokens.ts` | "refuses a customer token on a staff route" | **done** |
+| 17.2 | The phone number is never returned to the client | — | Only `phoneLast3` leaves the server | `routes/customer-auth.ts` | "never returns the phone number" | **done** |
+| 17.3 | Customer logout is immediate | ASVS 3.3 | Same family check as staff | `http/authenticate.ts` | "logs out, and the access token stops working immediately" | **done** |
+| 17.4 | Rotation and reuse detection apply to customers | ASVS 3.3 | One rotation path, both subjects | `services/auth/tokens.ts` | "rotates the refresh token, and detects a replay" | **done** |
 
 ## 15. Staff recovery
 

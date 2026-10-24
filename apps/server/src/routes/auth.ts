@@ -176,6 +176,15 @@ export function authRouter({
 
     rotateSession(presented)
       .then(async (outcome) => {
+        if (outcome.kind === 'reuse_detected' || outcome.kind === 'rotated') {
+          /* A staff endpoint must not rotate a customer's session, even
+             though the mechanics are shared. */
+          if (outcome.subjectType !== 'staff') {
+            clearSessionCookies(res);
+            throw new ApiError(401, 'unauthenticated', 'Authentication is required');
+          }
+        }
+
         if (outcome.kind === 'reuse_detected') {
           /* The family is already revoked by the time this returns. Both the
              thief and the legitimate user are logged out, and the event is
@@ -184,7 +193,7 @@ export function authRouter({
           await record(logger, {
             action: 'staff.logout',
             actorType: 'staff',
-            actorStaffId: outcome.staffId,
+            actorStaffId: outcome.subjectId,
             targetType: 'Session',
             targetId: outcome.familyId,
             outcome: 'failure',
@@ -200,7 +209,7 @@ export function authRouter({
           throw new ApiError(401, 'unauthenticated', 'Authentication is required');
         }
 
-        const staff = await StaffUser.findById(outcome.staffId).select('role status name').lean<{
+        const staff = await StaffUser.findById(outcome.subjectId).select('role status name').lean<{
           role: 'agent' | 'admin';
           status: string;
           name: string;
@@ -219,7 +228,7 @@ export function authRouter({
           outcome.session.expiresAt,
         );
         const accessToken = await issueAccessToken({
-          staffId: outcome.staffId,
+          staffId: outcome.subjectId,
           role: staff.role,
           familyId: outcome.session.familyId,
           secret: env.ACCESS_TOKEN_SECRET,

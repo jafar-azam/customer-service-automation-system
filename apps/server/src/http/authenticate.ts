@@ -1,7 +1,11 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import type { Env, StaffRole } from '@csas/shared';
 import { ApiError } from './errors.js';
-import { isFamilyActive, verifyAccessToken } from '../services/auth/tokens.js';
+import {
+  isFamilyActive,
+  verifyAccessToken,
+  verifyCustomerAccessToken,
+} from '../services/auth/tokens.js';
 
 /**
  * Who is making this request, and may they?
@@ -24,9 +28,15 @@ export interface Actor {
   readonly familyId: string;
 }
 
+export interface CustomerActor {
+  readonly customerId: string;
+  readonly familyId: string;
+}
+
 declare module 'express-serve-static-core' {
   interface Request {
     actor?: Actor;
+    customerActor?: CustomerActor;
   }
 }
 
@@ -68,6 +78,35 @@ export function requireStaff({ env }: AuthenticateOptions): RequestHandler {
         }
 
         req.actor = { staffId: claims.sub, role: claims.role, familyId: claims.sid };
+        next();
+      })
+      .catch(next);
+  };
+}
+
+/**
+ * The customer equivalent.
+ *
+ * A separate middleware rather than a flag on the staff one: the two tokens
+ * are different shapes, the two subjects live in different collections, and a
+ * single function with a branch is how a customer eventually ends up holding
+ * something a staff guard accepts.
+ */
+export function requireCustomer({ env }: AuthenticateOptions): RequestHandler {
+  return function authenticateCustomer(req: Request, _res: Response, next: NextFunction): void {
+    const token = bearerToken(req);
+    if (token === undefined) {
+      next(new ApiError(401, 'unauthenticated', 'Authentication is required'));
+      return;
+    }
+
+    verifyCustomerAccessToken(token, env.ACCESS_TOKEN_SECRET)
+      .then(async (claims) => {
+        if (!claims) throw new ApiError(401, 'unauthenticated', 'Authentication is required');
+        if (!(await isFamilyActive(claims.sid))) {
+          throw new ApiError(401, 'unauthenticated', 'Authentication is required');
+        }
+        req.customerActor = { customerId: claims.sub, familyId: claims.sid };
         next();
       })
       .catch(next);
