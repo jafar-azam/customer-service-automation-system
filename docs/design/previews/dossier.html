@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en" dir="ltr" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dossier — C.S.A.S design direction</title>
+<style>@font-face {
+  font-family: 'CSAS Latin';
+  src: url('fonts/serif-400.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'CSAS Latin';
+  src: url('fonts/serif-600.woff2') format('woff2');
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'CSAS Arabic';
+  src: url('fonts/naskh-400.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'CSAS Arabic';
+  src: url('fonts/naskh-600.woff2') format('woff2');
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'CSAS Mono';
+  src: url('fonts/plex-mono-400.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+
+:root {
+    --canvas: #F6F3ED;
+    --surface: #FFFDF8;
+    --surface-muted: #EDE7DC;
+    --border: #CFC6B6;
+    --text: #1B1A16;
+    --text-muted: #5A544A;
+    --accent: #0D5551;
+    --on-accent: #FFFDF8;
+    --danger: #95291F;
+    --success: #2B6236;
+    --warning: #7E5210;
+    --info: #1F4F74;
+    --focus: #0D5551;
+    --border-strong: #6F6A5F;
+  --unit: 8px;
+  --radius: 2px;
+  --radius-lg: 3px;
+  --body-size: 16px;
+  --heading-weight: 600;
+  --font-latin: 'CSAS Latin', system-ui, sans-serif;
+  --font-arabic: 'CSAS Arabic', 'CSAS Latin', system-ui, sans-serif;
+  --font-mono: 'CSAS Mono', ui-monospace, monospace;
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+    --canvas: #13120E;
+    --surface: #1B1915;
+    --surface-muted: #24211B;
+    --border: #3C372E;
+    --text: #EFEAE0;
+    --text-muted: #A89E8E;
+    --accent: #5CBFB3;
+    --on-accent: #10201E;
+    --danger: #E79084;
+    --success: #79C78C;
+    --warning: #D9AB54;
+    --info: #8CB9DE;
+    --focus: #5CBFB3;
+    --border-strong: #6B6558;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--text);
+  font-family: var(--font-latin);
+  font-size: var(--body-size);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+[dir='rtl'] body, [dir='rtl'] .screen { font-family: var(--font-arabic); }
+
+h1, h2, h3 { font-weight: var(--heading-weight); line-height: 1.2; margin: 0; letter-spacing: -0.01em; }
+p { margin: 0; }
+
+/* Motion: opacity and transform only, and never for anyone who asked not to. */
+.interactive { transition: background-color 160ms ease, border-color 160ms ease, opacity 160ms ease, transform 160ms ease; }
+.interactive:hover { transform: translateY(-1px); }
+@media (prefers-reduced-motion: reduce) {
+  .interactive, .interactive:hover { transition: none; transform: none; }
+}
+
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+
+.shell { max-width: 1120px; margin: 0 auto; padding: calc(var(--unit) * 5) calc(var(--unit) * 4); }
+
+.screen { background: var(--canvas); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; margin-bottom: calc(var(--unit) * 6); }
+.screen-label { display: flex; align-items: center; gap: calc(var(--unit) * 1.5); padding: calc(var(--unit) * 2) calc(var(--unit) * 3); background: var(--surface-muted); border-bottom: 1px solid var(--border); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); font-family: var(--font-mono); }
+
+/* ── Public site ──────────────────────────────────────────────────────── */
+.site-nav { display: flex; align-items: center; justify-content: space-between; padding: calc(var(--unit) * 3) calc(var(--unit) * 5); border-bottom: 1px solid var(--border); background: var(--surface); }
+.wordmark { font-weight: 600; letter-spacing: 0.04em; display: flex; align-items: center; gap: calc(var(--unit) * 1.5); }
+.wordmark span { font-family: var(--font-mono); font-size: 13px; color: var(--text-muted); }
+.site-nav ul { display: flex; gap: calc(var(--unit) * 4); list-style: none; margin: 0; padding: 0; font-size: 14px; color: var(--text-muted); }
+
+.hero { padding: calc(var(--unit) * 10) calc(var(--unit) * 5) calc(var(--unit) * 8); background: var(--surface); }
+.eyebrow { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); font-family: var(--font-mono); margin-bottom: calc(var(--unit) * 2); }
+.hero h1 { font-size: clamp(28px, 4.2vw, 46px); max-width: 20ch; margin-bottom: calc(var(--unit) * 3); }
+.hero p { max-width: 58ch; color: var(--text-muted); font-size: calc(var(--body-size) + 2px); margin-bottom: calc(var(--unit) * 5); }
+.actions { display: flex; gap: calc(var(--unit) * 2); flex-wrap: wrap; }
+
+.btn { display: inline-flex; align-items: center; gap: calc(var(--unit) * 1.5); border-radius: var(--radius); padding: calc(var(--unit) * 1.75) calc(var(--unit) * 3); font: inherit; font-weight: 600; font-size: 14px; cursor: pointer; border: 1px solid transparent; }
+.btn-primary { background: var(--accent); color: var(--on-accent); }
+.btn-secondary { background: transparent; color: var(--text); border-color: var(--border-strong); }
+
+.stats { display: flex; gap: calc(var(--unit) * 8); margin-top: calc(var(--unit) * 8); padding-top: calc(var(--unit) * 5); border-top: 1px solid var(--border); flex-wrap: wrap; }
+.stat strong { display: block; font-size: 26px; font-weight: 600; }
+.stat span { font-size: 13px; color: var(--text-muted); }
+
+/* ── Dashboard ────────────────────────────────────────────────────────── */
+.dash { display: grid; grid-template-columns: 196px 1fr; min-height: 420px; background: var(--surface); }
+/* Deliberately **not** mirrored for RTL. Grid lays its columns out in the
+   writing direction already, so the 196px sidebar lands on the right in
+   Arabic on its own. An earlier version flipped the template by hand and
+   produced the opposite of what it intended: the sidebar took the wide
+   column and the ticket table was squeezed into 196px. Everything
+   directional here is a logical property - border-inline-end,
+   text-align:start, margin-inline-end - which is the whole technique. */
+.side { background: var(--surface-muted); border-inline-end: 1px solid var(--border); padding: calc(var(--unit) * 3); }
+.side h2 { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); margin-bottom: calc(var(--unit) * 2); font-family: var(--font-mono); }
+.side a { display: flex; align-items: center; gap: calc(var(--unit) * 1.5); padding: calc(var(--unit) * 1.5) calc(var(--unit) * 2); border-radius: var(--radius); color: var(--text-muted); text-decoration: none; font-size: 14px; }
+.side a.current { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: inset 0 0 0 1px var(--border); }
+
+.dash-main { padding: calc(var(--unit) * 4); }
+.dash-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: calc(var(--unit) * 4); gap: calc(var(--unit) * 3); flex-wrap: wrap; }
+.dash-head h2 { font-size: 20px; }
+.dash-head p { color: var(--text-muted); font-size: 13px; margin-top: calc(var(--unit) * 0.5); }
+
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: start; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); font-weight: 600; padding: 0 calc(var(--unit) * 2) calc(var(--unit) * 1.5); border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 16px calc(var(--unit) * 2); border-bottom: 1px solid var(--border); vertical-align: middle; }
+tbody tr:last-child td { border-bottom: 0; }
+.ref { font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); }
+
+.tag { display: inline-flex; align-items: center; gap: calc(var(--unit) * 0.75); font-size: 12px; padding: 2px calc(var(--unit) * 1.25); border-radius: var(--radius); background: var(--surface-muted); color: var(--text-muted); white-space: nowrap; }
+.sla { display: inline-flex; align-items: center; gap: calc(var(--unit) * 0.75); font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
+.sla-ok { color: var(--text-muted); }
+.sla-warn { color: var(--warning); }
+.sla-danger { color: var(--danger); }
+
+/* ── Chat ─────────────────────────────────────────────────────────────── */
+.chat { background: var(--surface); padding: calc(var(--unit) * 4); }
+.chat-head { padding-bottom: calc(var(--unit) * 3); border-bottom: 1px solid var(--border); margin-bottom: calc(var(--unit) * 4); }
+.chat-head h2 { font-size: 18px; }
+.chat-head p { color: var(--text-muted); font-size: 13px; font-family: var(--font-mono); margin-top: calc(var(--unit) * 0.5); }
+
+.msg { display: flex; gap: calc(var(--unit) * 2); margin-bottom: calc(var(--unit) * 3); max-width: 76ch; }
+.avatar { flex: 0 0 auto; width: 28px; height: 28px; border-radius: 2px; display: grid; place-items: center; background: var(--surface-muted); color: var(--text-muted); }
+.bubble { border: 1px solid var(--border); border-radius: var(--radius-lg); padding: calc(var(--unit) * 2.5) calc(var(--unit) * 3); background: var(--surface); }
+.msg-customer .bubble { background: var(--surface-muted); border-color: transparent; }
+.who { font-size: 12px; color: var(--text-muted); margin-bottom: calc(var(--unit) * 1); display: flex; gap: calc(var(--unit) * 1.5); align-items: center; }
+
+.citation { display: inline-flex; align-items: center; gap: calc(var(--unit) * 1); margin-top: calc(var(--unit) * 2); font-size: 12px; color: var(--accent); border: 1px solid var(--border-strong); border-radius: var(--radius); padding: calc(var(--unit) * 0.75) calc(var(--unit) * 1.5); }
+.confidence { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+
+.resolve { border: 1px solid var(--border); border-radius: var(--radius-lg); padding: calc(var(--unit) * 3); margin-top: calc(var(--unit) * 4); display: flex; align-items: center; justify-content: space-between; gap: calc(var(--unit) * 3); flex-wrap: wrap; background: var(--surface); }
+.resolve p { font-weight: 600; }
+
+.composer { display: flex; gap: calc(var(--unit) * 2); margin-top: calc(var(--unit) * 4); }
+.composer input { flex: 1; font: inherit; font-size: 14px; padding: calc(var(--unit) * 2); border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); color: var(--text); }
+.composer input::placeholder { color: var(--text-muted); }
+
+/* ── Controls ─────────────────────────────────────────────────────────── */
+.controls { position: sticky; top: 0; z-index: 10; display: flex; gap: calc(var(--unit) * 2); align-items: center; padding: calc(var(--unit) * 2) calc(var(--unit) * 4); background: var(--surface); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.controls .name { font-weight: 600; margin-inline-end: auto; }
+.toggle { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius); overflow: hidden; }
+.toggle button { font: inherit; font-size: 12px; padding: calc(var(--unit) * 1) calc(var(--unit) * 2); background: var(--surface); color: var(--text-muted); border: 0; cursor: pointer; }
+.toggle button[aria-pressed='true'] { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+
+.swatches { display: flex; flex-wrap: wrap; gap: calc(var(--unit) * 1); margin-top: calc(var(--unit) * 2); }
+.swatch { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.swatch i { display: block; height: 34px; width: 92px; }
+.swatch b { display: block; padding: 3px 6px; font-weight: 400; color: var(--text-muted); background: var(--surface); }
+
+.notes { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: calc(var(--unit) * 4); margin-bottom: calc(var(--unit) * 6); }
+.notes h2 { font-size: 18px; margin-bottom: calc(var(--unit) * 2); }
+.notes p { color: var(--text-muted); margin-bottom: calc(var(--unit) * 2); max-width: 70ch; }
+.notes dl { display: grid; grid-template-columns: max-content 1fr; gap: calc(var(--unit) * 1) calc(var(--unit) * 3); margin: 0; font-size: 14px; }
+.notes dt { color: var(--text-muted); }
+.notes dd { margin: 0; }
+</style>
+</head>
+<body>
+<div class="controls">
+  <span class="name">Dossier</span>
+  <div class="toggle" role="group" aria-label="Theme">
+    <button type="button" data-theme-btn="light" aria-pressed="true">Light</button>
+    <button type="button" data-theme-btn="dark" aria-pressed="false">Dark</button>
+  </div>
+  <div class="toggle" role="group" aria-label="Language">
+    <button type="button" data-lang-btn="en" aria-pressed="true">English</button>
+    <button type="button" data-lang-btn="ar" aria-pressed="false">العربية</button>
+  </div>
+  <a href="index.html" style="font-size:12px;color:var(--text-muted)">All three →</a>
+</div>
+
+<div class="shell">
+  <section class="notes">
+  <h2>Why this one might be right</h2>
+  <p>A support ticket is a record, so the interface behaves like a well-kept file: warm paper, a serif for anything that is read rather than scanned, and rules instead of boxes.</p><p>It slows the eye down on purpose — this is the direction for a product whose credibility comes from being careful rather than fast.</p>
+  <dl>
+    <dt>Latin</dt><dd>Source Serif 4</dd>
+    <dt>Arabic</dt><dd>Noto Naskh Arabic</dd>
+    <dt>Numbers &amp; refs</dt><dd>IBM Plex Mono</dd>
+    <dt>Type note</dt><dd>Naskh is the Arabic tradition that actually matches a Latin serif — both are calligraphic, both carry authority. Most Arabic/Latin pairings reach for a geometric sans and lose that entirely.</dd>
+    <dt>Spacing</dt><dd>8px base — 8 · 16 · 24 · 32 · 48 · 64 · 80</dd>
+    <dt>Radius</dt><dd>2px, 3px for panels</dd>
+    <dt>Rhythm</dt><dd>8px base, 2px radius. Generous spacing and almost-square corners: the structure comes from horizontal rules and margins, the way a printed document does.</dd>
+    <dt>Token file</dt><dd><code>docs/design/palettes.json</code> → <code>dossier</code></dd>
+  </dl>
+</section>
+  <div data-screens="en">
+    <section class="screen">
+  <div class="screen-label"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg> Public site — home</div>
+  <nav class="site-nav">
+    <div class="wordmark">C.S.A.S <span>support</span></div>
+    <ul><li>Home</li><li>About</li><li>Services</li><li>Contact</li></ul>
+  </nav>
+  <div class="hero">
+    <div class="eyebrow">Support for maintenance-contract customers</div>
+    <h1>Answers from your own documentation, not from a guess.</h1>
+    <p>Describe the problem in Arabic, Arabizi or English. The assistant answers only from approved knowledge-base entries and cites them — and hands you to an engineer the moment it is not sure.</p>
+    <div class="actions">
+      <button class="btn btn-primary interactive"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg> Sign in with your phone</button>
+      <button class="btn btn-secondary interactive">How it works</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><strong>62%</strong><span>Answered without an engineer</span></div><div class="stat"><strong>4 min</strong><span>Median first response</span></div><div class="stat"><strong>5</strong><span>Written forms handled</span></div>
+    </div>
+  </div>
+</section>
+    <section class="screen">
+  <div class="screen-label"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Dashboard — ticket queue</div>
+  <div class="dash">
+    <aside class="side">
+      <h2>Desk</h2>
+      <a href="#" class="current"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Ticket queue</a>
+      <a href="#"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg> Knowledge base</a>
+      <a href="#"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg> Customers</a>
+      <a href="#"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg> Review queue</a>
+    </aside>
+    <div class="dash-main">
+      <div class="dash-head">
+        <div>
+          <h2>Ticket queue</h2>
+          <p>On duty: Karim S. · 3 breaching within the hour</p>
+        </div>
+        <button class="btn btn-secondary interactive">Filter</button>
+      </div>
+      <table>
+        <thead><tr><th>Ref</th><th>Customer</th><th>Subject</th><th>Form</th><th>Priority</th><th>SLA</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="ref">CSAS-001241</td>
+            <td>Cedar Pharmaceuticals</td>
+            <td>Stock sync stopped overnight</td>
+            <td><span class="tag">Arabizi</span></td>
+            <td>High</td>
+            <td><span class="sla sla-warn"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> 00:12</span></td>
+          </tr><tr>
+            <td class="ref">CSAS-001240</td>
+            <td>Beirut Logistics</td>
+            <td>Cannot print delivery notes</td>
+            <td><span class="tag">Lebanese</span></td>
+            <td>Urgent</td>
+            <td><span class="sla sla-danger"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg> breached</span></td>
+          </tr><tr>
+            <td class="ref">CSAS-001238</td>
+            <td>Tripoli Textiles</td>
+            <td>Second till licence</td>
+            <td><span class="tag">English</span></td>
+            <td>Low</td>
+            <td><span class="sla sla-ok"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> 06:40</span></td>
+          </tr><tr>
+            <td class="ref">CSAS-001237</td>
+            <td>Cedar Pharmaceuticals</td>
+            <td>Batch export missing column</td>
+            <td><span class="tag">MSA</span></td>
+            <td>Medium</td>
+            <td><span class="sla sla-ok"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> 02:55</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+    <section class="screen">
+  <div class="screen-label"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg> Customer — conversation</div>
+  <div class="chat">
+    <div class="chat-head">
+      <h2>Printer stopped after the update</h2>
+      <p>CSAS-001240 · Beirut Logistics · opened 11 minutes ago</p>
+    </div>
+
+    <div class="msg msg-customer">
+      <div class="avatar"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></div>
+      <div>
+        <div class="who">Customer <span class="tag">Arabizi</span></div>
+        <div class="bubble">el printer 3am ya3mel error ba3ed l update, chou badna na3mel?</div>
+      </div>
+    </div>
+
+    <div class="msg">
+      <div class="avatar"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg></div>
+      <div>
+        <div class="who">Assistant <span class="confidence">Confidence 0.88</span></div>
+        <div class="bubble">
+          After the 4.1 update the spooler service does not restart on its own. Stop the print spooler, clear the queue folder, then start it again — the delivery-note template is unaffected.
+          <div><span class="citation"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg> Knowledge base · KB-0412 · Print spooler after upgrade</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="resolve">
+      <p>Did this solve the problem?</p>
+      <div class="actions">
+        <button class="btn btn-primary interactive"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> Yes, thank you</button>
+        <button class="btn btn-secondary interactive">No, I need a person</button>
+      </div>
+    </div>
+
+    <div class="composer">
+      <input placeholder="Write a reply…" aria-label="Write a reply…" />
+      <button class="btn btn-primary interactive"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg> Send</button>
+    </div>
+  </div>
+</section>
+  </div>
+  <div data-screens="ar" dir="rtl" lang="ar" hidden>
+    <section class="screen">
+  <div class="screen-label"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg> Public site — home</div>
+  <nav class="site-nav">
+    <div class="wordmark">C.S.A.S <span>support</span></div>
+    <ul><li>الرئيسية</li><li>من نحن</li><li>الخدمات</li><li>اتصل بنا</li></ul>
+  </nav>
+  <div class="hero">
+    <div class="eyebrow">دعم لعملاء عقود الصيانة</div>
+    <h1>إجابات من وثائقكم أنتم، لا من التخمين.</h1>
+    <p>اشرح المشكلة بالعربية أو بالعربيزي أو بالإنكليزية. المساعد يجيب فقط من مقالات قاعدة المعرفة المعتمدة ويذكر مصدره، ويحوّلك إلى مهندس فور أن يفقد اليقين.</p>
+    <div class="actions">
+      <button class="btn btn-primary interactive"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg> الدخول برقم الهاتف</button>
+      <button class="btn btn-secondary interactive">كيف يعمل</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><strong>٦٢٪</strong><span>حُلّت دون مهندس</span></div><div class="stat"><strong>٤ دقائق</strong><span>وسيط أول رد</span></div><div class="stat"><strong>٥</strong><span>أشكال الكتابة المدعومة</span></div>
+    </div>
+  </div>
+</section>
+    <section class="screen">
+  <div class="screen-label"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Dashboard — ticket queue</div>
+  <div class="dash">
+    <aside class="side">
+      <h2>Desk</h2>
+      <a href="#" class="current"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> قائمة التذاكر</a>
+      <a href="#"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg> قاعدة المعرفة</a>
+      <a href="#"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg> العملاء</a>
+      <a href="#"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg> المراجعة</a>
+    </aside>
+    <div class="dash-main">
+      <div class="dash-head">
+        <div>
+          <h2>قائمة التذاكر</h2>
+          <p>المناوب: كريم س. · ٣ تتجاوز المهلة خلال ساعة</p>
+        </div>
+        <button class="btn btn-secondary interactive">تصفية</button>
+      </div>
+      <table>
+        <thead><tr><th>الرقم</th><th>العميل</th><th>الموضوع</th><th>الشكل</th><th>الأولوية</th><th>المهلة</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="ref">CSAS-001241</td>
+            <td>سيدر فارما</td>
+            <td>توقّف مزامنة المخزون</td>
+            <td><span class="tag">عربيزي</span></td>
+            <td>عالية</td>
+            <td><span class="sla sla-warn"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> ٠٠:١٢</span></td>
+          </tr><tr>
+            <td class="ref">CSAS-001240</td>
+            <td>بيروت لوجستيك</td>
+            <td>لا تطبع إيصالات التسليم</td>
+            <td><span class="tag">لبنانية</span></td>
+            <td>عاجلة</td>
+            <td><span class="sla sla-danger"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg> تجاوزت</span></td>
+          </tr><tr>
+            <td class="ref">CSAS-001238</td>
+            <td>طرابلس للنسيج</td>
+            <td>رخصة صندوق ثانٍ</td>
+            <td><span class="tag">إنكليزية</span></td>
+            <td>منخفضة</td>
+            <td><span class="sla sla-ok"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> ٠٦:٤٠</span></td>
+          </tr><tr>
+            <td class="ref">CSAS-001237</td>
+            <td>سيدر فارما</td>
+            <td>عمود ناقص في التصدير</td>
+            <td><span class="tag">فصحى</span></td>
+            <td>متوسطة</td>
+            <td><span class="sla sla-ok"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> ٠٢:٥٥</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+    <section class="screen">
+  <div class="screen-label"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg> Customer — conversation</div>
+  <div class="chat">
+    <div class="chat-head">
+      <h2>الطابعة توقفت بعد التحديث</h2>
+      <p>CSAS-001240 · بيروت لوجستيك · فُتحت قبل ١١ دقيقة</p>
+    </div>
+
+    <div class="msg msg-customer">
+      <div class="avatar"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></div>
+      <div>
+        <div class="who">العميل <span class="tag">لبنانية مع تبديل لغوي</span></div>
+        <div class="bubble">الطابعة عم تعطي error بعد التحديث، شو بدنا نعمل؟</div>
+      </div>
+    </div>
+
+    <div class="msg">
+      <div class="avatar"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg></div>
+      <div>
+        <div class="who">المساعد <span class="confidence">الثقة ٠٫٨٨</span></div>
+        <div class="bubble">
+          بعد تحديث 4.1 لا تُعاد خدمة الطباعة تلقائيًا. أوقف خدمة الطباعة، ثم امسح مجلد قائمة الانتظار، ثم شغّلها من جديد — قالب إيصال التسليم لا يتأثر.
+          <div><span class="citation"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg> قاعدة المعرفة · KB-0412 · خدمة الطباعة بعد الترقية</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="resolve">
+      <p>هل حلّ هذا المشكلة؟</p>
+      <div class="actions">
+        <button class="btn btn-primary interactive"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg> نعم، شكرًا</button>
+        <button class="btn btn-secondary interactive">لا، أريد موظفًا</button>
+      </div>
+    </div>
+
+    <div class="composer">
+      <input placeholder="اكتب ردًا…" aria-label="اكتب ردًا…" />
+      <button class="btn btn-primary interactive"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg> إرسال</button>
+    </div>
+  </div>
+</section>
+  </div>
+  <section class="notes">
+  <h2>Palette</h2>
+  <p>Every pair is checked by <code>npm run check:contrast</code>; the numbers in the step README come from that run, not from an eyeball.</p>
+  <div class="swatches">
+    <div class="swatch"><i style="background:#F6F3ED"></i><b>canvas<br>#F6F3ED</b></div><div class="swatch"><i style="background:#FFFDF8"></i><b>surface<br>#FFFDF8</b></div><div class="swatch"><i style="background:#EDE7DC"></i><b>surfaceMuted<br>#EDE7DC</b></div><div class="swatch"><i style="background:#CFC6B6"></i><b>border<br>#CFC6B6</b></div><div class="swatch"><i style="background:#1B1A16"></i><b>text<br>#1B1A16</b></div><div class="swatch"><i style="background:#5A544A"></i><b>textMuted<br>#5A544A</b></div><div class="swatch"><i style="background:#0D5551"></i><b>accent<br>#0D5551</b></div><div class="swatch"><i style="background:#FFFDF8"></i><b>onAccent<br>#FFFDF8</b></div><div class="swatch"><i style="background:#95291F"></i><b>danger<br>#95291F</b></div><div class="swatch"><i style="background:#2B6236"></i><b>success<br>#2B6236</b></div><div class="swatch"><i style="background:#7E5210"></i><b>warning<br>#7E5210</b></div><div class="swatch"><i style="background:#1F4F74"></i><b>info<br>#1F4F74</b></div><div class="swatch"><i style="background:#0D5551"></i><b>focus<br>#0D5551</b></div><div class="swatch"><i style="background:#6F6A5F"></i><b>borderStrong<br>#6F6A5F</b></div>
+  </div>
+</section>
+</div>
+
+<script>
+  const root = document.documentElement;
+
+  /* '?theme=dark&lang=ar' so one particular state can be linked and
+     screenshotted, rather than described in words. */
+  const params = new URLSearchParams(location.search);
+  const wanted = { theme: params.get('theme'), lang: params.get('lang') };
+  for (const button of document.querySelectorAll('[data-theme-btn]')) {
+    button.addEventListener('click', () => {
+      const mode = button.dataset.themeBtn;
+      root.dataset.theme = mode;
+      for (const other of document.querySelectorAll('[data-theme-btn]')) {
+        other.setAttribute('aria-pressed', String(other === button));
+      }
+    });
+  }
+  for (const button of document.querySelectorAll('[data-lang-btn]')) {
+    button.addEventListener('click', () => {
+      const lang = button.dataset.langBtn;
+      document.querySelector('[data-screens="en"]').hidden = lang !== 'en';
+      document.querySelector('[data-screens="ar"]').hidden = lang !== 'ar';
+      for (const other of document.querySelectorAll('[data-lang-btn]')) {
+        other.setAttribute('aria-pressed', String(other === button));
+      }
+    });
+  }
+
+  if (wanted.theme === 'dark') document.querySelector('[data-theme-btn="dark"]').click();
+  if (wanted.lang === 'ar') document.querySelector('[data-lang-btn="ar"]').click();
+</script>
+</body>
+</html>

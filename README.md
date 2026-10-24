@@ -4,12 +4,15 @@ A bilingual support assistant that answers from an approved knowledge base — i
 Lebanese Arabic, Arabizi, Arabic–English code-switching, Modern Standard Arabic
 or English — and hands over to a human the moment it is not confident enough.
 
-> **Status: in development.** Phase 1 is complete (foundation and
-> observability) and Phase 2 is under way: the threat model, the security
-> checklist and the data layer are done; authentication is next. The customer flow, the assistant and the dashboard are being
-> built step by step; each step's reasoning, commands and verification live in
-> [`docs/steps/`](docs/steps/). Badges, screenshots and a demo recording are
-> added at the release step, when there is a running product to show.
+> **Status: in development.** Phase 1 (foundation and observability) and
+> Phase 2 (threat model, data layer, staff and customer authentication) are
+> complete. Phase 3 has begun with three design directions, which are built and
+> awaiting a choice — open
+> [`docs/design/previews/index.html`](docs/design/previews/index.html) to see
+> them. The assistant and the dashboard follow. Each step's reasoning, commands
+> and verification live in [`docs/steps/`](docs/steps/); badges, screenshots and
+> a demo recording are added at the release step, when there is a running
+> product to show.
 
 ---
 

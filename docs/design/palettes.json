@@ -1,0 +1,199 @@
+{
+  "note": "The single source for the three design directions. `npm run check:contrast` verifies every pair below against WCAG 2.1 AA; step 10 turns the chosen direction into CSS custom properties from this same file. Two border tokens on purpose: `border` separates a card from the page and is decorative, which WCAG 1.4.11 does not govern — forcing 3:1 on every card edge is why some 'accessible' interfaces look like spreadsheets. `borderStrong` is for boundaries a person must perceive to use a control (inputs, checkboxes, segmented controls) and is held to 3:1.",
+  "pairs": [
+    {
+      "label": "body text on the page",
+      "fg": "text",
+      "bg": "canvas",
+      "minimum": 4.5
+    },
+    {
+      "label": "body text on a card",
+      "fg": "text",
+      "bg": "surface",
+      "minimum": 4.5
+    },
+    {
+      "label": "secondary text on the page",
+      "fg": "textMuted",
+      "bg": "canvas",
+      "minimum": 4.5
+    },
+    {
+      "label": "secondary text on a card",
+      "fg": "textMuted",
+      "bg": "surface",
+      "minimum": 4.5
+    },
+    {
+      "label": "secondary text on a muted panel",
+      "fg": "textMuted",
+      "bg": "surfaceMuted",
+      "minimum": 4.5
+    },
+    {
+      "label": "link / accent text on a card",
+      "fg": "accent",
+      "bg": "surface",
+      "minimum": 4.5
+    },
+    {
+      "label": "primary button label",
+      "fg": "onAccent",
+      "bg": "accent",
+      "minimum": 4.5
+    },
+    {
+      "label": "error text on a card",
+      "fg": "danger",
+      "bg": "surface",
+      "minimum": 4.5
+    },
+    {
+      "label": "success text on a card",
+      "fg": "success",
+      "bg": "surface",
+      "minimum": 4.5
+    },
+    {
+      "label": "warning text on a card",
+      "fg": "warning",
+      "bg": "surface",
+      "minimum": 4.5
+    },
+    {
+      "label": "informational text on a card",
+      "fg": "info",
+      "bg": "surface",
+      "minimum": 4.5
+    },
+    {
+      "label": "focus ring against the page",
+      "fg": "focus",
+      "bg": "canvas",
+      "minimum": 3.0
+    },
+    {
+      "label": "input / control boundary (WCAG 1.4.11)",
+      "fg": "borderStrong",
+      "bg": "surface",
+      "minimum": 3.0
+    }
+  ],
+  "directions": [
+    {
+      "id": "operations-desk",
+      "name": "Operations Desk",
+      "modes": {
+        "light": {
+          "canvas": "#F3F5F7",
+          "surface": "#FFFFFF",
+          "surfaceMuted": "#E9ECF0",
+          "border": "#C5CBD4",
+          "text": "#14181D",
+          "textMuted": "#525A66",
+          "accent": "#1D2430",
+          "onAccent": "#FFFFFF",
+          "danger": "#A3231B",
+          "success": "#1B6238",
+          "warning": "#8A5200",
+          "info": "#1F5278",
+          "focus": "#1F5278",
+          "borderStrong": "#6E7682"
+        },
+        "dark": {
+          "canvas": "#0D1014",
+          "surface": "#151A20",
+          "surfaceMuted": "#1C222A",
+          "border": "#39414D",
+          "text": "#E7EAEE",
+          "textMuted": "#9AA4B1",
+          "accent": "#C8D2DE",
+          "onAccent": "#121720",
+          "danger": "#F2908A",
+          "success": "#6FC893",
+          "warning": "#E2A64A",
+          "info": "#8FBBE4",
+          "focus": "#8FBBE4",
+          "borderStrong": "#68707C"
+        }
+      }
+    },
+    {
+      "id": "dossier",
+      "name": "Dossier",
+      "modes": {
+        "light": {
+          "canvas": "#F6F3ED",
+          "surface": "#FFFDF8",
+          "surfaceMuted": "#EDE7DC",
+          "border": "#CFC6B6",
+          "text": "#1B1A16",
+          "textMuted": "#5A544A",
+          "accent": "#0D5551",
+          "onAccent": "#FFFDF8",
+          "danger": "#95291F",
+          "success": "#2B6236",
+          "warning": "#7E5210",
+          "info": "#1F4F74",
+          "focus": "#0D5551",
+          "borderStrong": "#6F6A5F"
+        },
+        "dark": {
+          "canvas": "#13120E",
+          "surface": "#1B1915",
+          "surfaceMuted": "#24211B",
+          "border": "#3C372E",
+          "text": "#EFEAE0",
+          "textMuted": "#A89E8E",
+          "accent": "#5CBFB3",
+          "onAccent": "#10201E",
+          "danger": "#E79084",
+          "success": "#79C78C",
+          "warning": "#D9AB54",
+          "info": "#8CB9DE",
+          "focus": "#5CBFB3",
+          "borderStrong": "#6B6558"
+        }
+      }
+    },
+    {
+      "id": "signal",
+      "name": "Signal",
+      "modes": {
+        "light": {
+          "canvas": "#FAFBFA",
+          "surface": "#FFFFFF",
+          "surfaceMuted": "#F0F2F0",
+          "border": "#D3D8D3",
+          "text": "#181C19",
+          "textMuted": "#555D56",
+          "accent": "#226149",
+          "onAccent": "#FFFFFF",
+          "danger": "#A32B21",
+          "success": "#226149",
+          "warning": "#7F5B00",
+          "info": "#27548F",
+          "focus": "#27548F",
+          "borderStrong": "#6E756E"
+        },
+        "dark": {
+          "canvas": "#0F1210",
+          "surface": "#171B18",
+          "surfaceMuted": "#1E231F",
+          "border": "#343B35",
+          "text": "#E8ECE8",
+          "textMuted": "#99A39A",
+          "accent": "#6FC79A",
+          "onAccent": "#0D1A13",
+          "danger": "#F0908A",
+          "success": "#6FC79A",
+          "warning": "#DCAC4B",
+          "info": "#8FB6EC",
+          "focus": "#8FB6EC",
+          "borderStrong": "#69726B"
+        }
+      }
+    }
+  ]
+}

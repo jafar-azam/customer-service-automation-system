@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>C.S.A.S — three design directions</title>
+<style>
+  @font-face { font-family: 'CSAS Latin'; src: url('fonts/plex-sans-400.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+  @font-face { font-family: 'CSAS Latin'; src: url('fonts/plex-sans-600.woff2') format('woff2'); font-weight: 600; font-display: swap; }
+  :root { color-scheme: light dark; }
+  body { margin: 0; background: #f3f5f7; color: #14181d; font-family: 'CSAS Latin', system-ui, sans-serif; line-height: 1.55; }
+  @media (prefers-color-scheme: dark) { body { background: #0d1014; color: #e7eaee; } .card { background: #151a20 !important; border-color: #39414d !important; } .card p { color: #9aa4b1 !important; } }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 56px 24px; }
+  h1 { font-size: 30px; margin: 0 0 12px; letter-spacing: -0.01em; }
+  .lede { max-width: 66ch; margin: 0 0 40px; opacity: 0.75; }
+  .grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .card { display: block; background: #fff; border: 1px solid #c5cbd4; border-radius: 8px; padding: 24px; text-decoration: none; color: inherit; transition: transform 160ms ease, border-color 160ms ease; }
+  .card:hover { transform: translateY(-2px); }
+  @media (prefers-reduced-motion: reduce) { .card, .card:hover { transition: none; transform: none; } }
+  .card h2 { font-size: 20px; margin: 0 0 8px; }
+  .card p { font-size: 14px; color: #525a66; margin: 0 0 16px; }
+  .row { display: flex; gap: 4px; margin-bottom: 6px; }
+  .row i { display: block; height: 22px; flex: 1; border-radius: 3px; border: 1px solid rgba(128,128,128,0.25); }
+  .go { font-size: 13px; font-weight: 600; display: inline-block; margin-top: 12px; }
+  footer { margin-top: 48px; font-size: 13px; opacity: 0.7; max-width: 70ch; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Three directions for C.S.A.S</h1>
+  <p class="lede">Each one is a complete answer to the same brief, not a variation on a theme. Open any of them to see the public home page, the agent's ticket queue and the customer conversation — in light and dark, in English and Arabic. Then pick one; step 10 turns it into tokens and a component library.</p>
+  <div class="grid">
+<a class="card interactive" href="operations-desk.html">
+  <h2>Operations Desk</h2>
+  <p>An instrument for people who work a queue all day: dense rows, numbers you can scan without reading, and colour used only where it carries a state.</p>
+  <div class="row">
+    <i title="accent" style="background:#1D2430"></i><i title="canvas" style="background:#F3F5F7"></i><i title="surface" style="background:#FFFFFF"></i><i title="text" style="background:#14181D"></i><i title="warning" style="background:#8A5200"></i><i title="danger" style="background:#A3231B"></i>
+  </div>
+  <div class="row dark">
+    <i title="accent" style="background:#C8D2DE"></i><i title="canvas" style="background:#0D1014"></i><i title="surface" style="background:#151A20"></i><i title="text" style="background:#E7EAEE"></i><i title="warning" style="background:#E2A64A"></i><i title="danger" style="background:#F2908A"></i>
+  </div>
+  <span class="go">Open Operations Desk →</span>
+</a>
+<a class="card interactive" href="dossier.html">
+  <h2>Dossier</h2>
+  <p>A support ticket is a record, so the interface behaves like a well-kept file: warm paper, a serif for anything that is read rather than scanned, and rules instead of boxes.</p>
+  <div class="row">
+    <i title="accent" style="background:#0D5551"></i><i title="canvas" style="background:#F6F3ED"></i><i title="surface" style="background:#FFFDF8"></i><i title="text" style="background:#1B1A16"></i><i title="warning" style="background:#7E5210"></i><i title="danger" style="background:#95291F"></i>
+  </div>
+  <div class="row dark">
+    <i title="accent" style="background:#5CBFB3"></i><i title="canvas" style="background:#13120E"></i><i title="surface" style="background:#1B1915"></i><i title="text" style="background:#EFEAE0"></i><i title="warning" style="background:#D9AB54"></i><i title="danger" style="background:#E79084"></i>
+  </div>
+  <span class="go">Open Dossier →</span>
+</a>
+<a class="card interactive" href="signal.html">
+  <h2>Signal</h2>
+  <p>The quiet, modern product: soft neutrals, one green that means resolved, and enough room that nothing feels urgent until something is.</p>
+  <div class="row">
+    <i title="accent" style="background:#226149"></i><i title="canvas" style="background:#FAFBFA"></i><i title="surface" style="background:#FFFFFF"></i><i title="text" style="background:#181C19"></i><i title="warning" style="background:#7F5B00"></i><i title="danger" style="background:#A32B21"></i>
+  </div>
+  <div class="row dark">
+    <i title="accent" style="background:#6FC79A"></i><i title="canvas" style="background:#0F1210"></i><i title="surface" style="background:#171B18"></i><i title="text" style="background:#E8ECE8"></i><i title="warning" style="background:#DCAC4B"></i><i title="danger" style="background:#F0908A"></i>
+  </div>
+  <span class="go">Open Signal →</span>
+</a>
+  </div>
+  <footer>Colours come from <code>docs/design/palettes.json</code> and every pair is verified against WCAG 2.1 AA by <code>npm run check:contrast</code>. Fonts are bundled, not loaded from a CDN. No gradients, no glow, no blur, no emoji icons, no autoplaying anything — motion is opacity and transform only, and is switched off under <code>prefers-reduced-motion</code>.</footer>
+</div>
+</body>
+</html>
