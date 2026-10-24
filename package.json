@@ -32,6 +32,7 @@
     "build:previews": "node scripts/build-design-previews.mjs",
     "build:tokens": "node scripts/build-tokens.mjs",
     "audit:cldr": "node scripts/audit-cldr.mjs",
+    "smoke": "node scripts/smoke/smoke.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

@@ -167,25 +167,36 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  compose:
-    name: Stack starts and answers
+  smoke:
+    name: Smoke test through the proxy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      # The smoke script needs socket.io-client and otpauth, and nothing else.
+      - run: npm ci
       - name: Generate .env
         run: node scripts/setup.mjs
+      # `--wait` alone is not enough: a build failure here must fail the job
+      # rather than leave the previous image running, which is exactly what
+      # `up --build` does locally when a TypeScript error breaks the build.
+      - name: Build the images
+        run: docker compose build
       - name: Start the stack
-        run: docker compose up --build -d --wait --wait-timeout 300
-      - name: The API answers through the reverse proxy
-        run: |
-          curl --fail --silent --show-error http://localhost:8080/api/version | tee /dev/stderr | grep -q '"name":"csas-server"'
+        run: docker compose up -d --wait --wait-timeout 300
       - name: The ML service refuses an unauthenticated call
         run: |
           code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/v1/version)
           test "$code" = "401" || { echo "expected 401, got $code"; exit 1; }
+      # Everything the unit tests cannot see: cookie `path` scoping, the nginx
+      # websocket upgrade, and the containers actually serving the code that
+      # was just built. Step 11 shipped three bugs that all lived here while
+      # the suite was green.
+      - name: Smoke test
+        run: npm run smoke
       - name: Logs on failure
         if: failure()
         run: docker compose logs --no-color --tail=200

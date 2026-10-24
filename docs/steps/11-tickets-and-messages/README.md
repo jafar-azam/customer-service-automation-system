@@ -116,8 +116,11 @@ what. A test comparing them found it:
 awaiting_customer → in_progress: expected false to be true
 ```
 
-The customer is a genuine actor there, not just a trigger, so the table was
-wrong. This is the entire reason both exist as data rather than as branches.
+The customer is a genuine actor there, not just a trigger, so the **table** was
+wrong — not the message path, which is the opposite of the instinct on seeing a
+permission check fail. Written up in full, including why neither component's
+own tests could see it:
+[`docs/findings/01-state-machine-divergence.md`](../../findings/01-state-machine-divergence.md).
 
 ### 3.2 Concurrency
 
@@ -199,6 +202,25 @@ it is `{ returnDocument: 'after' }`. Caught because a warning in test output is
 noise that trains people to ignore output.
 
 ---
+
+## 6a. And a smoke test, so it cannot happen again
+
+All three of those bugs lived in a layer the test suite cannot reach, and the
+suite was green the whole time. `npm run smoke` walks one conversation through
+the **published port** with a real cookie jar that honours `path`, a real
+websocket through nginx, and no imports from `apps/` at all. 23 checks, two
+seconds.
+
+It is deliberately thin — it proves the seams and leaves behaviour to the tests
+that can cover it properly. Both step 11 bugs were reintroduced to confirm it
+actually catches them:
+
+| Bug reintroduced | Unit tests | Smoke |
+| :-- | :-- | :-- |
+| `requireCsrfToken` back on the ticket routes | 34 passed | **FAIL** `403 csrf_failed` |
+| nginx's `/api/socket.io/` upgrade block removed | 34 passed | **FAIL** ×3, websocket error |
+
+It replaces the two hand-written `curl` assertions in CI's compose job.
 
 ## 7. Security controls, and the test proving each
 

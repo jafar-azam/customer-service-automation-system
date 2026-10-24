@@ -34,6 +34,11 @@ So the requirement is **coverage, not count**.
 **Five profiles, minimum five people.** This is a proposed coverage strategy,
 not a representative sample, and must not be described as one.
 
+Recruiting starts now rather than when the review does — people are slow to
+answer and slower to deliver, so the asking happens in parallel with steps 12
+onward. [`REVIEWER-REQUEST.md`](REVIEWER-REQUEST.md) has the message to send,
+in both languages, and what not to promise.
+
 Each reviewer records, before reviewing: their language and script preference,
 their role, build and date, page or task, interface language, conversation
 language, numeral preference, clock preference, browser/OS/device, and —
