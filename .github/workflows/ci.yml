@@ -86,7 +86,12 @@ jobs:
         working-directory: apps/ml
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      # Pinned exactly. astral-sh/setup-uv publishes no floating `v10` tag —
+      # its movable majors stop at v6 — so `@v10` is unresolvable and the job
+      # dies at "Set up job" before a single step runs. Checking the releases
+      # API is not the same check: `v10.3.2` exists as a release while `v10`
+      # does not exist as a tag.
+      - uses: astral-sh/setup-uv@v10.3.2
         with:
           enable-cache: true
           cache-dependency-glob: apps/ml/uv.lock
@@ -129,7 +134,12 @@ jobs:
       - run: npm ci
       - name: npm audit (fails on high or critical)
         run: npm audit --audit-level=high
-      - uses: astral-sh/setup-uv@v10
+      # Pinned exactly. astral-sh/setup-uv publishes no floating `v10` tag —
+      # its movable majors stop at v6 — so `@v10` is unresolvable and the job
+      # dies at "Set up job" before a single step runs. Checking the releases
+      # API is not the same check: `v10.3.2` exists as a release while `v10`
+      # does not exist as a tag.
+      - uses: astral-sh/setup-uv@v10.3.2
         with:
           enable-cache: true
           cache-dependency-glob: apps/ml/uv.lock

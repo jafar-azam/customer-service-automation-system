@@ -4,7 +4,7 @@
 # Node
 node_modules/
 dist/
-build/
+/build/
 *.tsbuildinfo
 coverage/
 .vite/
@@ -29,16 +29,25 @@ __pycache__/
 reference/
 data/raw/
 data/external/
-models/
+# Anchored with a leading slash, and that matters. An unanchored `models/`
+# matches a directory of that name at ANY depth — including
+# `apps/server/src/db/models/`, which is the entire data layer. Six source
+# files were silently never committed, and the repository could not be built
+# from a clone: three CI jobs failed with "Cannot find module
+# '../db/models/index.js'" while every local build worked, because the files
+# were on disk. Trained ML artefacts live at the repository root.
+/models/
 *.safetensors
 *.onnx
 *.gguf
 *.bin
 mlruns/
 
-# Local runtime state
-storage/
-logs/
+# Local runtime state. Anchored for the same reason as `/models/` above —
+# and `storage/` is not hypothetical: step 12 adds attachment handling, and a
+# `src/storage/` module would have been silently dropped from every commit.
+/storage/
+/logs/
 *.log
 
 # Local-only external datasets (12 GB TechQA lives here)
