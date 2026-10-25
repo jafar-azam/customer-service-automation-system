@@ -20,6 +20,12 @@ jobs:
   analyse:
     name: Analyse (${{ matrix.language }})
     runs-on: ubuntu-latest
+    # Code scanning needs GitHub Advanced Security on a private repository; it
+    # is free only for public ones. Until this repo is public the job cannot
+    # succeed, and a permanently red check is worse than an absent one —
+    # people stop reading the whole list. It starts working by itself on the
+    # day the repository is made public, with no edit here.
+    if: ${{ !github.event.repository.private }}
     strategy:
       fail-fast: false
       matrix:

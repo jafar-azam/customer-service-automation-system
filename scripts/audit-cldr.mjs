@@ -12,7 +12,7 @@
  * Output is committed to `docs/design/cldr-audit.json`. A diff there is a
  * finding, not noise.
  */
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 const OUT = 'docs/design/cldr-audit.json';
@@ -66,10 +66,7 @@ export function audit() {
   };
 }
 
-function main() {
-  const result = audit();
-  writeFileSync(OUT, `${JSON.stringify(result, null, 2)}\n`);
-  console.log(`built ${OUT} (Node ${result.node}, ICU ${String(result.icu)})`);
+function summarise(result) {
   for (const entry of result.locales) {
     console.log(
       `  ${entry.locale.padEnd(6)} → ${entry.resolved.locale.padEnd(6)} ` +
@@ -77,6 +74,85 @@ function main() {
         `${entry.resolved.hourCycle ?? '-'}  Jan=${entry.months[0] ?? ''}`,
     );
   }
+}
+
+/**
+ * Compares this runtime's locale data against what is committed.
+ *
+ * Only the `locales` array is compared. The file also records the Node and ICU
+ * versions it was produced on, which is useful provenance and useless as an
+ * assertion: diffing the whole file would turn every Node patch release into a
+ * red build, for a reason that has nothing to do with the data the file exists
+ * to protect. An environment change is reported and does not fail.
+ *
+ * A difference in the locale data *is* a failure, and a genuine finding: it
+ * means ICU changed a month name, a default numbering system or a plural
+ * category under a product that depends on all three.
+ */
+function check() {
+  const fresh = audit();
+  let committed;
+  try {
+    committed = JSON.parse(readFileSync(OUT, 'utf8'));
+  } catch {
+    console.error(`audit-cldr: ${OUT} is missing — run \`npm run audit:cldr\` and commit it`);
+    return 1;
+  }
+
+  if (committed.node !== fresh.node || committed.icu !== fresh.icu) {
+    console.log(
+      `audit-cldr: recorded on Node ${String(committed.node)} / ICU ${String(committed.icu)}, ` +
+        `running Node ${fresh.node} / ICU ${String(fresh.icu)} — comparing locale data only`,
+    );
+  }
+
+  const differences = [];
+  for (const entry of fresh.locales) {
+    const before = committed.locales?.find((candidate) => candidate.locale === entry.locale);
+    if (!before) {
+      differences.push(`${entry.locale}: not in the committed audit`);
+      continue;
+    }
+    for (const field of ['numberingSystem', 'dateExample', 'numberExample']) {
+      if (before[field] !== entry[field]) {
+        differences.push(
+          `${entry.locale}.${field}: ${String(before[field])} → ${String(entry[field])}`,
+        );
+      }
+    }
+    if (JSON.stringify(before.months) !== JSON.stringify(entry.months)) {
+      differences.push(`${entry.locale}.months changed`);
+    }
+    if (JSON.stringify(before.pluralCategories) !== JSON.stringify(entry.pluralCategories)) {
+      differences.push(`${entry.locale}.pluralCategories changed`);
+    }
+    if (JSON.stringify(before.resolved) !== JSON.stringify(entry.resolved)) {
+      differences.push(`${entry.locale}.resolved changed`);
+    }
+  }
+
+  if (differences.length > 0) {
+    console.error(`\naudit-cldr: the runtime's locale data no longer matches ${OUT}\n`);
+    for (const difference of differences) console.error(`  ${difference}`);
+    console.error('\nThis is a finding, not noise: re-read the affected decisions in');
+    console.error('docs/design/LOCALIZATION.md before regenerating the file.');
+    return 1;
+  }
+
+  console.log('audit-cldr: the runtime matches the committed locale data');
+  summarise(fresh);
+  return 0;
+}
+
+function main() {
+  if (process.argv.includes('--check')) {
+    process.exitCode = check();
+    return;
+  }
+  const result = audit();
+  writeFileSync(OUT, `${JSON.stringify(result, null, 2)}\n`);
+  console.log(`built ${OUT} (Node ${result.node}, ICU ${String(result.icu)})`);
+  summarise(result);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

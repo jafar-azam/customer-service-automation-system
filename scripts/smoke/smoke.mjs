@@ -158,12 +158,33 @@ async function resetRateLimits() {
  * will use. Until that page exists (step 16) this reaches into the container.
  */
 async function latestOtp() {
-  return inServer(
+  /* Reports what it found rather than dereferencing blindly. The first CI run
+     failed here with `Cannot read properties of undefined (reading 'preview')`
+     — a stack trace that says nothing about the actual cause, which was an
+     unseeded database with no such customer, so no code was ever sent. An
+     unhelpful error in a smoke test is nearly as bad as no smoke test: it
+     sends you looking in the wrong place. */
+  const found = await inServer(
     'const m=require("mongoose");(async()=>{await m.connect(process.env.MONGODB_URI);' +
       'const n=await m.connection.db.collection("notifications").find({kind:"otp"})' +
       '.sort({createdAt:-1}).limit(1).toArray();' +
-      'console.log(/(\\d{6})/.exec(n[0].preview)[1]);await m.disconnect();})();',
+      'console.log(n.length===0?"NONE":(/(\\d{6})/.exec(n[0].preview)?.[1] ?? "NOCODE"));' +
+      'await m.disconnect();})();',
   );
+
+  if (found === 'NONE') {
+    throw new Error(
+      'no one-time code in the dev inbox. The database is probably not seeded — ' +
+        'run `npm run seed` (or `npm run seed:ci`) and try again.',
+    );
+  }
+  if (found === 'NOCODE') {
+    throw new Error(
+      'a notification exists but carries no code. DEMO_MODE is probably off, ' +
+        'so the mock provider is not revealing codes.',
+    );
+  }
+  return found;
 }
 
 function connectSocket(token) {

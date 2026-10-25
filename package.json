@@ -45,6 +45,7 @@
     "seed": "docker compose --profile seed run --rm --build seed",
     "break-glass": "docker compose --profile seed run --rm --build seed node apps/server/dist/cli/break-glass-main.js",
     "seed:fast": "docker compose --profile seed run --rm seed node apps/server/dist/seed/index.js --fast",
+    "seed:ci": "docker compose --profile seed run --rm --build seed node apps/server/dist/seed/index.js --no-kb --no-seniordata",
     "seed:native": "npm run build -w @csas/shared && npm run build -w @csas/server && npm run seed -w @csas/server",
     "pin:images": "node scripts/pin-images.mjs",
     "test:ml": "cd apps/ml && uv run pytest -q",

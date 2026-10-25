@@ -51,14 +51,20 @@ jobs:
         # this is the half of the coverage those tests cannot provide.
         run: npm run check:contrast
       - name: Generated files match their sources
-        # tokens.css, the design previews and the CLDR audit are all generated.
-        # Regenerating and diffing catches the case where someone edits the
-        # output by hand, or changes a generator and forgets to rebuild.
+        # tokens.css and the design previews are deterministic: same inputs,
+        # same bytes. Regenerating and diffing catches an output edited by hand
+        # or a generator changed without a rebuild.
         run: |
           npm run build:tokens
           npm run build:previews
-          npm run audit:cldr
           git diff --exit-code -- apps/client/src/styles/tokens.css docs/design
+      - name: The runtime's CLDR data still matches what was recorded
+        # Deliberately not part of the diff above. cldr-audit.json records the
+        # Node and ICU versions it was produced on, so diffing the whole file
+        # would turn every Node patch release into a red build for a reason
+        # that has nothing to do with the locale data it exists to protect.
+        # `--check` compares the locale findings and reports the environment.
+        run: npm run audit:cldr -- --check
       - name: Type-check and build
         run: npm run build
       - name: Tests with coverage
@@ -187,6 +193,16 @@ jobs:
         run: docker compose build
       - name: Start the stack
         run: docker compose up -d --wait --wait-timeout 300
+      # The smoke walk signs in as a seeded customer and a seeded admin, and a
+      # runner's database is empty. Without this the first run fails at
+      # "the code signs the customer in" and every later check fails with it —
+      # which is exactly what happened on the first push.
+      #
+      # `--no-kb --no-seniordata`: TechQA is a 12 GB local download and
+      # seniordata.csv is real business data that is git-ignored and must never
+      # reach a runner. Neither is needed to walk the conversation.
+      - name: Seed the demonstration data
+        run: npm run seed:ci
       - name: The ML service refuses an unauthenticated call
         run: |
           code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/v1/version)
