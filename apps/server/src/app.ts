@@ -10,6 +10,9 @@ import { createMetrics, type Metrics } from './observability/metrics.js';
 import { authRouter } from './routes/auth.js';
 import { customerAuthRouter } from './routes/customer-auth.js';
 import { ticketRouter } from './routes/tickets.js';
+import { attachmentRouter } from './routes/attachments.js';
+import { createStorage, type StorageProvider } from './services/providers/storage.js';
+import { createScanner, type FileScanner } from './services/providers/virus-scan.js';
 import { NullTicketEvents, type TicketEvents } from './realtime/events.js';
 import { healthRouter } from './routes/health.js';
 import { metricsRouter } from './routes/metrics.js';
@@ -26,6 +29,9 @@ export interface AppOptions {
   readonly startedAt?: number;
   /** Where real-time announcements go. Defaults to a no-op. */
   readonly events?: TicketEvents;
+  /** Injected so a test can use in-memory storage and a scanner it controls. */
+  readonly storage?: StorageProvider;
+  readonly scanner?: FileScanner;
 }
 
 export interface App {
@@ -53,6 +59,12 @@ export function createApp({
   /* Defaults to a no-op recorder so a route test needs no server, no port and
      no transport. `index.ts` passes the Socket.IO implementation. */
   events = new NullTicketEvents(),
+  storage = createStorage(env.STORAGE_ROOT),
+  scanner = createScanner(env.FILE_SCAN_PROVIDER, {
+    host: env.CLAMAV_HOST,
+    port: env.CLAMAV_PORT,
+    logger,
+  }),
 }: AppOptions): App {
   const app = express();
 
@@ -93,6 +105,14 @@ export function createApp({
      from the authenticated actor — see routes/tickets.ts. */
   app.use('/api/customer/tickets', ticketRouter({ env, logger, events, audience: 'customer' }));
   app.use('/api/tickets', ticketRouter({ env, logger, events, audience: 'staff' }));
+
+  /* Mounted at the API root rather than under /tickets, because a download URL
+     addresses the attachment and not the ticket it happens to hang from. */
+  app.use(
+    '/api/customer',
+    attachmentRouter({ env, logger, storage, scanner, audience: 'customer' }),
+  );
+  app.use('/api', attachmentRouter({ env, logger, storage, scanner, audience: 'staff' }));
 
   app.use(notFoundHandler);
   app.use(createErrorHandler({ logger, metrics, errorTracker }));

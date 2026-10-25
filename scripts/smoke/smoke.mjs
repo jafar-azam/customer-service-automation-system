@@ -364,7 +364,89 @@ async function main() {
     check('an internal note does reach staff', (await noteToStaff) !== null);
   }
 
-  /* 8. The customer's own view excludes the note. */
+  /* 8. Attachments, through the proxy.
+        Uploads are the part of this product most decided by nginx rather than
+        by Express: `client_max_body_size`, request buffering, and whether the
+        multipart body survives the hop at all. None of that is visible to a
+        test that posts to Express directly. */
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64',
+  );
+
+  const form = new FormData();
+  form.append('file', new Blob([png], { type: 'image/png' }), 'screenshot.png');
+  const uploaded = await fetch(`${BASE}/api/customer/tickets/${ticket.id}/attachments`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${customerToken}` },
+    body: form,
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  const uploadBody = await uploaded.json().catch(() => ({}));
+  check(
+    'an image uploads through the proxy',
+    uploaded.status === 201,
+    `${uploaded.status} ${uploadBody?.error?.code ?? ''}`,
+  );
+
+  const attachmentId = uploadBody?.attachment?.id;
+  check('it is scanned and downloadable', uploadBody?.attachment?.downloadable === true);
+
+  /* A renamed executable: the extension and the multipart Content-Type both
+     say PNG, and only the bytes disagree. */
+  const elfForm = new FormData();
+  elfForm.append(
+    'file',
+    new Blob([Buffer.concat([Buffer.from([0x7f, 0x45, 0x4c, 0x46]), Buffer.alloc(512)])], {
+      type: 'image/png',
+    }),
+    'holiday.png',
+  );
+  const refused = await fetch(`${BASE}/api/customer/tickets/${ticket.id}/attachments`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${customerToken}` },
+    body: elfForm,
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  check('a renamed executable is refused', refused.status === 415, `got ${refused.status}`);
+
+  if (attachmentId) {
+    const linkResponse = await call(
+      'POST',
+      `/api/customer/attachments/${attachmentId}/download-url`,
+      {
+        token: customerToken,
+      },
+    );
+    const url = linkResponse.body?.url;
+    check('a signed download link is issued', typeof url === 'string', linkResponse.status);
+
+    if (typeof url === 'string') {
+      const download = await fetch(`${BASE}${url}`, {
+        headers: { authorization: `Bearer ${customerToken}` },
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+      check('the file downloads through the proxy', download.status === 200);
+      /* nginx must not strip or rewrite these on the way out. */
+      check(
+        'the proxy preserves the download headers',
+        download.headers.get('content-disposition')?.startsWith('attachment;') === true &&
+          download.headers.get('x-content-type-options') === 'nosniff',
+        `${download.headers.get('content-disposition') ?? 'none'} / ${download.headers.get('x-content-type-options') ?? 'none'}`,
+      );
+
+      const unauthenticated = await fetch(`${BASE}${url}`, {
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+      check(
+        'a signed link alone is not enough',
+        unauthenticated.status === 401,
+        `got ${unauthenticated.status}`,
+      );
+    }
+  }
+
+  /* 9. The customer's own view excludes the note. */
   const conversation = await call('GET', `/api/customer/tickets/${ticket.id}/messages`, {
     token: customerToken,
   });

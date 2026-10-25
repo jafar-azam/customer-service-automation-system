@@ -48,6 +48,18 @@ COPY --from=build /app/apps/server/dist ./apps/server/dist
 COPY --from=build /app/apps/server/package.json ./apps/server/
 COPY package.json ./
 
+# The attachment store, created here and owned by the user that writes it.
+#
+# Docker initialises a named volume from the image's directory at that path on
+# first mount, including its ownership — so creating it here is what makes the
+# volume writable by `node`. Without it the directory is created by the daemon
+# as root and every upload fails with EACCES, which is how this was found: 476
+# tests passed and the first real upload through the stack returned 500.
+#
+# 0700: only this user. Nothing else in the container has any business reading
+# customer attachments.
+RUN mkdir -p /var/lib/csas/storage && chown node:node /var/lib/csas/storage && chmod 700 /var/lib/csas/storage
+
 # The node image ships an unprivileged `node` user (uid 1000). Running as root
 # would mean a remote-code-execution bug owns the container.
 USER node

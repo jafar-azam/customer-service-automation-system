@@ -21,7 +21,7 @@ L2 · A0x = OWASP Top 10 2021 · API0x = OWASP API Security Top 10 2023 ·
 LLM0x = OWASP Top 10 for LLM Applications 2025.
 
 Counts as of step 08, re-derived from the table by `npm run audit:checklist`
-rather than written by hand: **74 done, 44 planned, 1 accepted**. (The numbered
+rather than written by hand: **81 done, 37 planned, 1 accepted**. (The numbered
 rows count one `accepted`; the five further acceptances have no requirement id
 because they are infrastructure decisions, and are listed at the end.)
 
@@ -70,7 +70,7 @@ because they are infrastructure decisions, and are listed at the end.)
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
 | 4.1 | Role-based access on every route | A01, API05 | `requireRole` after `requireStaff` | `http/authenticate.ts` | "refuses an agent on the same route"; 401 before 403 | **done** |
 | 4.2 | **Object-level checks on every resource** | API01 | Ownership enforced in the repository layer | `repositories/*` | cross-customer ticket read → 404 | step 11 |
-| 4.3 | Attachments and transcripts carry the same checks | API01 | Access check before any signed URL is issued | `services/attachments` | cross-customer attachment → denied | step 12 |
+| 4.3 | Attachments and transcripts carry the same checks | API01 | Reached through `findTicket`, the same function the REST and socket paths use — one ownership rule, not a second one for files | `services/attachments` | upload to another's ticket → 404 and nothing decoded; download → refused | **done** |
 | 4.4 | Socket rooms authorized at join | API01 | Handshake authenticated; room membership checked | `realtime/*` | joining another customer's room refused | step 11 |
 | 4.5 | Function-level authorization on admin actions | API05 | Explicit allow-list per role | `http/authorize` | every admin route probed from an agent session | step 34 |
 
@@ -99,13 +99,13 @@ because they are infrastructure decisions, and are listed at the end.)
 
 | # | Requirement | Std | Control | Code | Test | Status |
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-| 7.1 | Type decided by magic bytes, not filename or client header | A08 | Sniffed and matched against an allow-list | `services/attachments` | renamed `.png` executable rejected | step 12 |
-| 7.2 | Size and count limits | ASVS 12.1 | Per file and per ticket | `services/attachments` | over-limit rejected | step 12 |
-| 7.3 | Images re-encoded; **all metadata stripped, including GPS** | — | Re-encode destroys payloads and EXIF | `services/attachments` | output has no EXIF; GPS absent | step 12 |
-| 7.4 | Malware scanning | A08 | ClamAV, or mock detecting EICAR | `services/file-scan` | EICAR string rejected | step 12 |
-| 7.5 | Stored outside the web root with unguessable ids | A01 | Private volume, random ids | `services/storage` | direct path fetch impossible | step 12 |
-| 7.6 | Served only through short-lived signed URLs after an access check | API01 | Signed, expiring, owner-checked | `services/attachments` | expired URL → 403; other customer → 403 | step 12 |
-| 7.7 | Retention-based deletion | — | Scheduled sweep | `jobs/retention` | file gone after the period | step 14 |
+| 7.1 | Type decided by magic bytes, not filename or client header | A08 | `file-type` signature detection; the allowlist is applied to the **detected** type. Text is the one type decided by exclusion, and strictly. SVG and archives refused outright | `services/attachments/type-check.ts` | 19 tests: renamed ELF, SVG, zip, GIF, offset PDF polyglot, `.txt` containing `<script>` | **done** |
+| 7.2 | Size and count limits | ASVS 12.1 | 10 MB per file enforced by multer while reading the stream, 20 per ticket, 30 uploads/hour per account. nginx allows 12m so the app returns a JSON error rather than nginx an opaque HTML 413 | `services/attachments`, `routes/attachments.ts` | over-limit and over-count rejected | **done** |
+| 7.3 | Images re-encoded; **all metadata stripped, including GPS** | — | sharp re-encode to PNG. Destroys EXIF/GPS, discards anything appended past the image data, and remakes the file with a decoder we chose. Decompression bombs refused on the header | `services/attachments/sanitize.ts` | GPS fixture verified to carry GPS *before* the strip, then absent after; appended `<?php` gone; 144-megapixel bomb refused | **done** |
+| 7.4 | Malware scanning | A08 | ClamAV over INSTREAM behind `--profile scan`; the default mock still detects EICAR by hash, so the infected branch is reachable and tested. `pending` and `error` are refused alongside `infected` — a scan that failed to run is not a scan that passed | `services/providers/virus-scan.ts` | infected file never stored, audited; scanner error → stored but undownloadable | **done** |
+| 7.5 | Stored outside the web root with unguessable ids | A01 | A private volume no nginx rule maps to, 0700, owned by the unprivileged user. Server-generated 128-bit keys; the customer's filename is metadata and never a path. Traversal refused even though keys are generated | `services/providers/storage.ts` | `../../etc/passwd` reduced to a basename; key escaping the root throws | **done** |
+| 7.6 | Served only through short-lived signed URLs after an access check | API01 | HMAC token bound to the attachment **and** the subject, 5 minutes. The signature is not the access control: the ownership check runs on every download anyway. `Content-Disposition: attachment`, `nosniff` and a sandbox CSP so nothing is ever rendered inline in this origin | `services/attachments/signed-url.ts` | expired, forged, extended, wrong-subject and wrong-attachment tokens all refused; a valid link with no session → 401 |  **done** |
+| 7.7 | Retention-based deletion | — | `deleteAfter` is written at upload from the retention schedule, so the sweep reads a date rather than recomputing a policy that may have changed. The sweep itself is step 14 | `services/attachments` | every attachment carries a `deleteAfter` 365 days out | step 14 |
 | 7.8 | Audio: size, duration and type limits, consent recorded | — | Checked before transcription | `services/voice` | over-length audio rejected; no consent → no capture | step 28 |
 
 ## 8. LLM and AI

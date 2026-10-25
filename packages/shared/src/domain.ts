@@ -239,6 +239,12 @@ export const AUDIT_ACTIONS = [
   'ticket.escalated',
   'ticket.resolved',
   'ticket.reopened',
+  'attachment.uploaded',
+  'attachment.downloaded',
+  /* An infected upload is never stored, so this entry is the only record that
+     it happened — which is exactly why it is audited. */
+  'attachment.rejected',
+  'attachment.deleted',
   'kb.created',
   'kb.submitted_for_review',
   'kb.approved',
