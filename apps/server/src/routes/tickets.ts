@@ -1,4 +1,11 @@
-import { INPUT_FORMS, PRIORITIES, TICKET_STATUSES, type Env } from '@csas/shared';
+import {
+  INPUT_FORMS,
+  LOCALES,
+  PRIORITIES,
+  TICKET_STATUSES,
+  type Env,
+  type Locale,
+} from '@csas/shared';
 import { Router, type Request } from 'express';
 import type { Logger } from 'pino';
 import { z } from 'zod';
@@ -8,14 +15,17 @@ import { rateLimit, TICKET_LIMITS } from '../http/rate-limit-middleware.js';
 import { validate, validatedQuery } from '../http/validate.js';
 import { listMessages } from '../repositories/messages.js';
 import { customerScope, staffScope, type Scope } from '../repositories/scope.js';
-import { findTicket, listTickets } from '../repositories/tickets.js';
+import { countTickets, findTicket, listTickets } from '../repositories/tickets.js';
 import { postMessage } from '../services/messages.js';
 import {
   allowedTransitions,
   assignTicket,
+  canReopen,
   createTicket,
+  reopenClosedTicket,
   transitionTicket,
 } from '../services/tickets.js';
+import { renderTranscript, transcriptFilename } from '../services/transcript.js';
 import type { TicketEvents } from '../realtime/events.js';
 
 /**
@@ -59,6 +69,17 @@ const idSchema = z.object({ id: z.string().regex(/^[0-9a-f]{24}$/i) });
    `strictObject` so an unknown filter is a 400 rather than silently ignored —
    a client asking for `?customerId=…` should be told it is not a filter, not
    quietly served everything. */
+const reopenSchema = z.strictObject({
+  body: z.string().trim().min(1).max(20_000),
+});
+
+const transcriptQuery = z.strictObject({
+  /* The transcript is a file the customer keeps, so its language is theirs to
+     choose rather than inherited from whatever the interface happened to be
+     set to when they clicked. */
+  locale: z.enum(LOCALES).optional(),
+});
+
 const listSchema = z.strictObject({
   status: z
     .union([z.enum(TICKET_STATUSES), z.array(z.enum(TICKET_STATUSES))])
@@ -71,6 +92,11 @@ const listSchema = z.strictObject({
   assignedToMe: z.coerce.boolean().optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
   before: z.coerce.date().optional(),
+  openedAfter: z.coerce.date().optional(),
+  openedBefore: z.coerce.date().optional(),
+  /* Bounded: an unbounded search string is a regular expression built from
+     user input, however well escaped. */
+  search: z.string().trim().max(120).optional(),
 });
 
 export interface TicketRouterOptions {
@@ -120,17 +146,32 @@ export function ticketRouter({ env, logger, events, audience }: TicketRouterOpti
        `exactOptionalPropertyTypes` draws a distinction between "absent" and
        "present and undefined", and a filter key holding `undefined` would be
        passed to Mongo as a real constraint matching nothing. */
+    /* Every key of the schema appears here. The first version of this listed
+       only the five filters that existed at the time, so when the date range
+       and search were added they parsed successfully and were then dropped —
+       an API that accepted a filter and silently ignored it, which is worse
+       than refusing one. Three tests caught it; nothing in the schema could. */
     const options = {
       ...(query.status === undefined ? {} : { status: query.status }),
       ...(query.priority === undefined ? {} : { priority: query.priority }),
       ...(query.assignedToMe === undefined ? {} : { assignedToMe: query.assignedToMe }),
       ...(query.limit === undefined ? {} : { limit: query.limit }),
       ...(query.before === undefined ? {} : { before: query.before }),
+      ...(query.openedAfter === undefined ? {} : { openedAfter: query.openedAfter }),
+      ...(query.openedBefore === undefined ? {} : { openedBefore: query.openedBefore }),
+      ...(query.search === undefined ? {} : { search: query.search }),
     };
 
-    listTickets(scopeFor(req, audience), options)
-      .then((tickets) => {
-        res.json({ tickets: tickets.map((ticket) => present(ticket)) });
+    const scope = scopeFor(req, audience);
+    /* The count runs against the same filter, so "showing 25 of 112" cannot
+       disagree with the rows. Built once and passed to both. */
+    Promise.all([listTickets(scope, options), countTickets(scope, options)])
+      .then(([tickets, total]) => {
+        res.json({
+          tickets: tickets.map((ticket) => present(ticket)),
+          total,
+          limit: options.limit ?? 25,
+        });
       })
       .catch(next);
   });
@@ -145,6 +186,11 @@ export function ticketRouter({ env, logger, events, audience }: TicketRouterOpti
              which buttons to draw, and a second copy of it in the client is a
              second copy to get wrong. */
           allowedTransitions: allowedTransitions(ticket.status, scope),
+          timeline: timeline(ticket),
+          /* Same function the reopen route uses, so the button the client
+             draws and the request the server accepts cannot disagree. */
+          reopen: canReopen(ticket, env.TICKET_REOPEN_WINDOW_DAYS),
+          continues: ticket.reopenedFromId ? String(ticket.reopenedFromId) : null,
         });
       })
       .catch(next);
@@ -215,6 +261,64 @@ export function ticketRouter({ env, logger, events, audience }: TicketRouterOpti
         .catch(next);
     },
   );
+
+  /**
+   * The conversation as a file.
+   *
+   * A GET so it can be a plain link, and no signed token: unlike an
+   * attachment this is generated on demand from records the caller has
+   * already proved they may read, so there is nothing to leak by URL that a
+   * session does not already grant.
+   */
+  router.get(
+    '/:id/transcript',
+    validate({ params: idSchema, query: transcriptQuery }),
+    (req, res, next) => {
+      const scope = scopeFor(req, audience);
+      const query = validatedQuery(req) as z.infer<typeof transcriptQuery>;
+      const locale: Locale = query.locale ?? 'en-LB';
+      const id = ticketId(req);
+
+      Promise.all([findTicket(scope, id), listMessages(scope, id, { limit: 200 })])
+        .then(([ticket, messages]) => {
+          const text = renderTranscript({ locale, ticket, messages });
+          res.setHeader('content-type', 'text/plain; charset=utf-8');
+          res.setHeader('x-content-type-options', 'nosniff');
+          res.setHeader('cache-control', 'private, no-store');
+          res.setHeader(
+            'content-disposition',
+            `attachment; filename="${transcriptFilename(ticket.reference)}"`,
+          );
+          res.send(text);
+        })
+        .catch(next);
+    },
+  );
+
+  if (audience === 'customer') {
+    /**
+     * Continues a closed conversation.
+     *
+     * Creates a *new* ticket linked to the old one. `closed` is terminal in
+     * the state machine on purpose — see step 11 — so this is not a
+     * transition, and the original keeps the history it had when it closed.
+     */
+    router.post(
+      '/:id/reopen',
+      rateLimit(TICKET_LIMITS.create),
+      validate({ params: idSchema, body: reopenSchema }),
+      (req, res, next) => {
+        const scope = scopeFor(req, audience);
+        const body = req.body as z.infer<typeof reopenSchema>;
+        reopenClosedTicket(scope, ticketId(req), body.body, env.TICKET_REOPEN_WINDOW_DAYS, logger)
+          .then(({ ticket, message }) => {
+            events.ticketCreated(ticket, message);
+            res.status(201).json({ ticket: present(ticket), message: presentMessage(message) });
+          })
+          .catch(next);
+      },
+    );
+  }
 
   if (audience === 'staff') {
     router.post(
@@ -296,4 +400,29 @@ export function presentMessage(message: {
     confidence: message.confidence ?? null,
     createdAt: message.createdAt,
   };
+}
+
+/**
+ * The status timeline, as the detail view shows it.
+ *
+ * Derived from `statusHistory` rather than stored separately, so there is one
+ * record of what happened. The staff id is deliberately **not** included: a
+ * customer has no use for it and it identifies an employee. Who changed it is
+ * reduced to a role.
+ */
+export function timeline(ticket: {
+  statusHistory: {
+    status: string;
+    at: Date;
+    byStaffId?: unknown;
+    byCustomer?: boolean;
+    note?: string;
+  }[];
+}): { status: string; at: Date; by: 'customer' | 'staff' | 'system'; note: string | null }[] {
+  return ticket.statusHistory.map((entry) => ({
+    status: entry.status,
+    at: entry.at,
+    by: entry.byCustomer === true ? 'customer' : entry.byStaffId ? 'staff' : 'system',
+    note: entry.note ?? null,
+  }));
 }

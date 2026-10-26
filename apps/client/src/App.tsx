@@ -18,6 +18,9 @@ import {
   Tag,
 } from './components/index.js';
 import { AlertIcon, ClockIcon, SendIcon } from './components/icons.js';
+import { History } from './screens/History.js';
+import { PreferencesScreen } from './screens/Preferences.js';
+import { TicketDetail } from './screens/TicketDetail.js';
 import { useLocale } from './locale-context.js';
 import { styles } from './components/styles.js';
 import { THEMES, useTheme, type Theme } from './theme.js';
@@ -120,9 +123,12 @@ function ApiStatus(): JSX.Element {
  * so switching language or theme here exercises exactly what every later
  * screen will do. Phase 4 replaces the content and keeps the frame.
  */
+type View = { readonly name: 'history' } | { readonly name: 'detail'; readonly id: string };
+
 export function App(): JSX.Element {
   const { locale } = useLocale();
   const { t } = useTranslation();
+  const [view, setView] = useState<View>({ name: 'history' });
   const preferences: FormatPreferences = { locale };
   const now = new Date('2026-10-24T12:30:00Z');
 
@@ -141,7 +147,29 @@ export function App(): JSX.Element {
       </header>
 
       <main id="main" className={appStyles.main}>
-        <h1>{t('page.dashboard')}</h1>
+        {/* Two screens and a panel, switched by state rather than by a router.
+            A router arrives when there are URLs worth sharing — step 32 adds
+            the public site, which is where that starts to matter. Adding one
+            now would be a dependency serving a single `if`. */}
+        {view.name === 'detail' ? (
+          <TicketDetail
+            id={view.id}
+            onBack={() => {
+              setView({ name: 'history' });
+            }}
+          />
+        ) : (
+          <>
+            <History
+              onOpen={(id) => {
+                setView({ name: 'detail', id });
+              }}
+            />
+            <PreferencesScreen />
+          </>
+        )}
+
+        <h2>{t('page.dashboard')}</h2>
         <p>{formatDate(now, preferences)}</p>
 
         <ApiStatus />

@@ -28,6 +28,22 @@ export interface ListOptions {
   readonly limit?: number;
   /** Keyset pagination: the `createdAt` of the last row of the previous page. */
   readonly before?: Date;
+  /** Inclusive date range on when the ticket was opened. */
+  readonly openedAfter?: Date;
+  readonly openedBefore?: Date;
+  /** Matches the subject or the reference. Never the message bodies. */
+  readonly search?: string;
+}
+
+/**
+ * Escapes a user string for use inside a regular expression.
+ *
+ * `CLAUDE.md`: never build a query or a regular expression from raw input.
+ * Without this, a search for `a{10000,}` is a denial of service and `.*` is a
+ * table scan that ignores the index.
+ */
+export function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /** A page size a caller cannot turn into a full export by asking for 10,000. */
@@ -43,7 +59,27 @@ export function listFilter(scope: Scope, options: ListOptions): QueryFilter<Tick
   if (options.priority && options.priority.length > 0) {
     filter.priority = { $in: [...options.priority] };
   }
-  if (options.before) filter['createdAt'] = { $lt: options.before };
+  /* One `createdAt` clause, built from up to three inputs. Assigning the key
+     twice would silently drop the earlier constraint — a filtered list that
+     quietly ignores the date range the customer chose. */
+  const createdAt: Record<string, Date> = {};
+  if (options.before) createdAt['$lt'] = options.before;
+  if (options.openedBefore) {
+    /* Inclusive: a person choosing 31 October means the whole of that day. */
+    const endOfDay = new Date(options.openedBefore);
+    endOfDay.setUTCHours(23, 59, 59, 999);
+    createdAt['$lte'] = endOfDay;
+  }
+  if (options.openedAfter) createdAt['$gte'] = options.openedAfter;
+  if (Object.keys(createdAt).length > 0) filter['createdAt'] = createdAt;
+
+  if (options.search !== undefined && options.search.trim() !== '') {
+    const pattern = new RegExp(escapeRegex(options.search.trim()), 'i');
+    /* Subject and reference only. The message bodies are the richest personal
+       data in the system, and a search that reaches them turns any staff
+       account into a way to trawl customer conversations by keyword. */
+    filter.$or = [{ subject: pattern }, { reference: pattern }];
+  }
 
   /* "Assigned to me" is only meaningful for staff, and silently ignoring it
      for a customer would be a filter that does nothing — so it is scoped

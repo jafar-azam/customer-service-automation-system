@@ -123,6 +123,20 @@ export const envSchema = z.object({
   CLAMAV_PORT: port.default(3310),
   STORAGE_ROOT: z.string().min(1).default('/var/lib/csas/storage'),
 
+  /**
+   * How long after closing a customer may reopen a conversation.
+   *
+   * Configurable because the right answer is a business decision, not a
+   * technical one — a company with monthly billing cycles wants a different
+   * number from one doing same-day repairs. Zero disables reopening entirely.
+   *
+   * Reopening a *closed* ticket creates a new one linked to it rather than
+   * resurrecting the old record: see step 11's state machine, where `closed`
+   * is terminal so an auto-close job and a customer cannot fight over one
+   * document indefinitely.
+   */
+  TICKET_REOPEN_WINDOW_DAYS: z.coerce.number().int().min(0).max(365).default(14),
+
   /* Where the seed importers read from. Both are git-ignored paths: the
      TechQA corpus is 12 GB and fetched by the contributor, and the senior-data
      CSV is real business data that may never be committed. Paths rather than

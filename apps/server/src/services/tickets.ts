@@ -317,3 +317,124 @@ export async function assignTicket(
 
   return ticket;
 }
+
+/* ── Reopening a closed ticket ──────────────────────────────────────────── */
+
+export type ReopenRefusal =
+  | { readonly ok: false; readonly reason: 'disabled' }
+  | { readonly ok: false; readonly reason: 'not_closed'; readonly status: TicketStatus }
+  | {
+      readonly ok: false;
+      readonly reason: 'window_passed';
+      readonly closedAt: Date;
+      readonly windowDays: number;
+    };
+
+export type ReopenEligibility = { readonly ok: true } | ReopenRefusal;
+
+/**
+ * Whether a closed ticket can still be continued.
+ *
+ * Pure, so the rule can be tested without a database and — more usefully —
+ * so the same function answers both "may this request proceed?" and "should
+ * the client draw the button?". Two implementations of that question drift,
+ * and the one in the browser is the one nobody re-reads.
+ */
+export function canReopen(
+  ticket: { readonly status: TicketStatus; readonly closedAt?: Date | undefined },
+  windowDays: number,
+  now: Date = new Date(),
+): ReopenEligibility {
+  if (windowDays <= 0) return { ok: false, reason: 'disabled' };
+  if (ticket.status !== 'closed') return { ok: false, reason: 'not_closed', status: ticket.status };
+
+  /* A closed ticket with no `closedAt` predates the field or was closed by a
+     path that failed to set it. Refusing is the safe reading: an unbounded
+     window is the one outcome the setting exists to prevent. */
+  const closedAt = ticket.closedAt;
+  if (!closedAt) return { ok: false, reason: 'window_passed', closedAt: new Date(0), windowDays };
+
+  const deadline = closedAt.getTime() + windowDays * 86_400_000;
+  if (now.getTime() > deadline) return { ok: false, reason: 'window_passed', closedAt, windowDays };
+
+  return { ok: true };
+}
+
+/**
+ * Continues a closed conversation as a new ticket.
+ *
+ * A **new** ticket, linked to the old one, rather than a transition out of
+ * `closed`. Step 11 made `closed` terminal deliberately: a record that can be
+ * reopened indefinitely is one an auto-close job and a customer can fight over
+ * forever, and the resolution time of the original becomes meaningless.
+ *
+ * The original keeps its history exactly as it was. The new ticket carries
+ * `reopenedFromId`, so the detail view can show the whole thread.
+ */
+export async function reopenClosedTicket(
+  scope: Scope,
+  ticketId: string,
+  body: string,
+  windowDays: number,
+  logger: Logger,
+): Promise<{ ticket: TicketDocument; message: MessageDocument }> {
+  if (scope.kind !== 'customer') {
+    throw new ApiError(403, 'forbidden', 'Only a customer can reopen their ticket');
+  }
+
+  const original = await findTicket(scope, ticketId);
+  const eligibility = canReopen(original, windowDays);
+
+  if (!eligibility.ok) {
+    const message =
+      eligibility.reason === 'disabled'
+        ? 'Reopening is not available'
+        : eligibility.reason === 'not_closed'
+          ? 'That ticket is not closed'
+          : `A closed ticket can only be continued within ${String(windowDays)} days`;
+    throw new ApiError(409, `reopen_${eligibility.reason}`, message, { windowDays });
+  }
+
+  /* The entitlement is re-checked, because continuing a conversation is
+     opening a ticket and an expired contract must not get a way around the
+     gate by using an old reference. */
+  const reference = await nextReference();
+  const now = new Date();
+
+  const ticket = await insertTicket({
+    reference,
+    customerId: original.customerId,
+    contractId: original.contractId,
+    subject: original.subject,
+    status: 'open',
+    priority: original.priority,
+    inputForm: original.inputForm,
+    sla: { pausedMs: 0 },
+    reopenedCount: 0,
+    reopenedFromId: original._id,
+    lastCustomerMessageAt: now,
+    statusHistory: [
+      { status: 'open', at: now, byCustomer: true, note: `continues ${original.reference}` },
+    ],
+  });
+
+  const message = await insertMessage({
+    ticketId: ticket._id,
+    author: 'customer',
+    kind: 'text',
+    body,
+    inputForm: original.inputForm,
+    internal: false,
+    citations: [],
+  });
+
+  await recordAudit(logger, {
+    action: 'ticket.reopened',
+    ...auditActorFor(scope),
+    targetType: 'ticket',
+    targetId: reference,
+    metadata: { continues: original.reference },
+  });
+
+  return { ticket, message };
+}

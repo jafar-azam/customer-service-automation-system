@@ -38,6 +38,45 @@ export const arLB = {
   page: {
     dashboard: 'لوحة المعلومات',
   },
+  history: {
+    title: 'طلبات الدعم الخاصة بك',
+    empty: 'لا توجد طلبات بعد.',
+    emptyFiltered: 'لا توجد طلبات تطابق هذه التصفية.',
+    showing: 'عرض {{shown}} من {{total}}',
+    filterStatus: 'الحالة',
+    filterSearch: 'بحث',
+    searchHint: 'الموضوع أو رقم الطلب',
+    filterFrom: 'من تاريخ',
+    filterTo: 'إلى تاريخ',
+    clear: 'إزالة التصفية',
+    anyStatus: 'كل الحالات',
+    opened: 'تاريخ الفتح',
+    updated: 'آخر تحديث',
+  },
+  detail: {
+    back: 'العودة إلى الطلبات',
+    conversation: 'المحادثة',
+    attachments: 'الملفات المرفقة',
+    noAttachments: 'لا توجد ملفات مرفقة.',
+    timeline: 'سجل الحالة',
+    download: 'تنزيل نسخة من المحادثة',
+    continues: 'يكمل طلبًا سابقًا',
+    reopen: 'إعادة فتح الطلب',
+    reopenPrompt: 'ما الذي حدث منذ ذلك الحين؟',
+    reopenWindowPassed: 'أُغلق هذا الطلب قبل أكثر من {{days}} يومًا ولم يعد بالإمكان إعادة فتحه.',
+    reopenDisabled: 'لا يمكن إعادة فتح الطلبات المغلقة.',
+    scanPending: 'قيد الفحص',
+    scanFailed: 'غير متاح',
+  },
+  preferences: {
+    title: 'الإشعارات',
+    whatsapp: 'إرسال التحديثات عبر واتساب',
+    email: 'إرسال التحديثات بالبريد الإلكتروني',
+    emailUnavailable: 'يلزم إضافة بريد إلكتروني لاستخدام هذا الخيار.',
+    marketing: 'عدم إرسال أي شيء سوى تحديثات الدعم',
+    language: 'لغة الرسائل',
+    saved: 'تم الحفظ',
+  },
   ticket: {
     /* `طلب دعم`, not `تذكرة`: the glossary's recommendation for clarity in a
        customer-facing interface. `تذكرة` reads as a cinema ticket first. */
@@ -93,6 +132,17 @@ export const arLB = {
     /* The problem and the recovery, never "you entered something wrong". */
     invalidPhone:
       'رقم الهاتف غير صحيح. يلزم رقم لبناني يبدأ بـ 03 أو 70 أو 71 أو 76 أو 78 أو 79 أو 81.',
+  },
+  error: {
+    unauthenticated: 'يلزم تسجيل الدخول لعرض طلباتك.',
+    forbidden: 'لا تتوفر صلاحية الوصول.',
+    not_found: 'تعذّر العثور على المطلوب.',
+    network_error: 'تعذّر الوصول إلى الخدمة.',
+    too_many_requests: 'عدد كبير من الطلبات — يلزم الانتظار قليلًا.',
+    contract_inactive: 'لا يوجد عقد صيانة فعّال لهذا الحساب.',
+    reopen_window_passed: 'لم يعد بالإمكان إعادة فتح هذا الطلب.',
+    reopen_not_closed: 'هذا الطلب ليس مغلقًا.',
+    unknown: 'حدث خطأ ما.',
   },
   state: {
     loading: 'جارٍ التحميل',

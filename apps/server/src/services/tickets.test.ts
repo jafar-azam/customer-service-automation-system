@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TICKET_STATUSES, type TicketStatus } from '@csas/shared';
-import { allowedTransitions, canTransition } from './tickets.js';
+import { allowedTransitions, canReopen, canTransition } from './tickets.js';
 import { statusAfterMessage } from './messages.js';
 import { customerScope, staffScope, systemScope } from '../repositories/scope.js';
 
@@ -114,5 +114,52 @@ describe('what a message does to a ticket', () => {
         expect(canTransition(status, next, scope), `${status} → ${next}`).toBe(true);
       }
     }
+  });
+});
+
+describe('the reopen window', () => {
+  const closedAt = new Date('2026-10-01T10:00:00Z');
+  const closed = { status: 'closed' as const, closedAt };
+
+  it('allows a closed ticket inside the window', () => {
+    const inside = new Date('2026-10-14T09:00:00Z');
+    expect(canReopen(closed, 14, inside)).toEqual({ ok: true });
+  });
+
+  it('refuses once the window has passed', () => {
+    const after = new Date('2026-10-20T10:00:01Z');
+    expect(canReopen(closed, 14, after)).toMatchObject({ ok: false, reason: 'window_passed' });
+  });
+
+  /* Exactly on the boundary is still inside: a customer acting on the last
+     day of a fourteen-day window has not missed it. */
+  it('includes the final moment of the window', () => {
+    const boundary = new Date(closedAt.getTime() + 14 * 86_400_000);
+    expect(canReopen(closed, 14, boundary)).toEqual({ ok: true });
+    expect(canReopen(closed, 14, new Date(boundary.getTime() + 1))).toMatchObject({ ok: false });
+  });
+
+  it('refuses a ticket that is not closed', () => {
+    expect(canReopen({ status: 'resolved', closedAt: undefined }, 14)).toMatchObject({
+      ok: false,
+      reason: 'not_closed',
+      status: 'resolved',
+    });
+  });
+
+  /* Zero is the documented way to turn the feature off, and it must not read
+     as "no window, therefore unlimited". */
+  it('is disabled by a window of zero', () => {
+    expect(canReopen(closed, 0, closedAt)).toMatchObject({ ok: false, reason: 'disabled' });
+  });
+
+  /* A closed ticket with no timestamp was closed by a path that failed to set
+     one. An unbounded window is the single outcome this setting exists to
+     prevent, so the missing value is read as "too old". */
+  it('refuses a closed ticket with no closedAt rather than allowing it forever', () => {
+    expect(canReopen({ status: 'closed', closedAt: undefined }, 14)).toMatchObject({
+      ok: false,
+      reason: 'window_passed',
+    });
   });
 });

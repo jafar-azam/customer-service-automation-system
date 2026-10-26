@@ -84,6 +84,8 @@ export interface TicketRecord {
   resolvedAt?: Date;
   closedAt?: Date;
   reopenedCount: number;
+  /** Set when this ticket was opened by reopening a closed one. */
+  reopenedFromId?: Types.ObjectId;
   lastCustomerMessageAt?: Date;
   statusHistory: StatusChange[];
 }
@@ -131,6 +133,9 @@ const ticketSchema = new Schema<TicketRecord>(
     resolvedAt: { type: Date },
     closedAt: { type: Date },
     reopenedCount: { type: Number, required: true, default: 0, min: 0 },
+    /** The closed ticket this one continues. A link rather than a resurrection:
+        the history of the original stays exactly as it was when it closed. */
+    reopenedFromId: { type: Schema.Types.ObjectId, ref: 'Ticket' },
     lastCustomerMessageAt: { type: Date },
 
     statusHistory: { type: [statusChangeSchema], default: [] },

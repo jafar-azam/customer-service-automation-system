@@ -22,15 +22,32 @@ function mount(locale: Locale = 'ar-LB', theme: Theme = 'light'): ReturnType<typ
 beforeEach(() => {
   /* The API call is not what these tests are about; a rejected fetch puts the
      page in its error state, which is one of the states worth rendering. */
+  /* The app now renders real screens, so the stub has to answer the endpoints
+     they call. Returning the version object for every URL — which the first
+     version did — left the history screen with no `tickets` array and a blank
+     page, which is a test artefact rather than a finding. */
   vi.stubGlobal(
     'fetch',
-    vi.fn(() =>
-      Promise.resolve(
-        new Response(JSON.stringify({ name: 'csas-api', version: '0.1.0', environment: 'test' }), {
-          headers: { 'content-type': 'application/json' },
-        }),
-      ),
-    ),
+    vi.fn((input: string) => {
+      const url = input;
+      const body = url.startsWith('/api/customer/preferences')
+        ? {
+            preferences: {
+              whatsapp: true,
+              email: false,
+              marketingOptOut: false,
+              preferredLanguage: 'ar',
+              emailAvailable: false,
+            },
+          }
+        : url.startsWith('/api/customer/tickets')
+          ? { tickets: [], total: 0, limit: 25 }
+          : { name: 'csas-api', version: '0.1.0', environment: 'test' };
+
+      return Promise.resolve(
+        new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } }),
+      );
+    }),
   );
   globalThis.localStorage.clear();
   document.documentElement.removeAttribute('data-theme');

@@ -11,6 +11,7 @@ import { authRouter } from './routes/auth.js';
 import { customerAuthRouter } from './routes/customer-auth.js';
 import { ticketRouter } from './routes/tickets.js';
 import { attachmentRouter } from './routes/attachments.js';
+import { preferencesRouter } from './routes/preferences.js';
 import { createStorage, type StorageProvider } from './services/providers/storage.js';
 import { createScanner, type FileScanner } from './services/providers/virus-scan.js';
 import { NullTicketEvents, type TicketEvents } from './realtime/events.js';
@@ -105,6 +106,8 @@ export function createApp({
      from the authenticated actor — see routes/tickets.ts. */
   app.use('/api/customer/tickets', ticketRouter({ env, logger, events, audience: 'customer' }));
   app.use('/api/tickets', ticketRouter({ env, logger, events, audience: 'staff' }));
+
+  app.use('/api/customer/preferences', preferencesRouter({ env, logger }));
 
   /* Mounted at the API root rather than under /tickets, because a download URL
      addresses the attachment and not the ticket it happens to hang from. */

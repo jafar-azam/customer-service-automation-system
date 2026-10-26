@@ -1,0 +1,117 @@
+/* Screen layout. Every directional declaration is logical (CSS-01). */
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--space-2);
+  margin-block-end: var(--space-2);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-1) * 0.75);
+}
+
+.muted {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.spread {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+/* ── Conversation ───────────────────────────────────────────────────────── */
+
+.message {
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+/* The accent edge sits on the reading side in both directions. */
+.fromCustomer {
+  border-inline-start: 3px solid var(--color-accent);
+}
+
+.fromAgent {
+  border-inline-start: 3px solid var(--color-info);
+  background: var(--color-surface-muted);
+}
+
+.who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  margin-block-end: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.body {
+  /* Preserves the line breaks a customer typed without letting a long
+     unbroken token — a URL, a stack trace — push the page sideways. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ── Timeline ───────────────────────────────────────────────────────────── */
+
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.timelineItem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1);
+  padding-inline-start: var(--space-2);
+  border-inline-start: 2px solid var(--color-border);
+  padding-block: calc(var(--space-1) * 0.5);
+  font-size: var(--text-sm);
+}
+
+/* ── Attachments ────────────────────────────────────────────────────────── */
+
+.files {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-1) * 0.75);
+}
+
+.file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+}
