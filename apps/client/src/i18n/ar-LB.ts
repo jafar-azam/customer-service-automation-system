@@ -23,6 +23,8 @@ export const arLB = {
     save: 'حفظ',
     cancel: 'إلغاء',
     confirm: 'تأكيد',
+    open: 'فتح',
+    openTicket: 'فتح الطلب {{reference}}',
     filter: 'تصفية',
     retry: 'إعادة المحاولة',
     signIn: 'تسجيل الدخول',

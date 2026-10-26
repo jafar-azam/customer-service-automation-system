@@ -190,12 +190,23 @@ export function History({ onOpen }: { readonly onOpen: (id: string) => void }): 
                     </Tag>
                   </td>
                   <td>
+                    {/* "Open", not "Confirm". This called `onOpen` while
+                        reading `action.confirm` — harmless generic wording
+                        when the list was built, and actively wrong once step
+                        16 made confirming a resolution a real action with its
+                        own meaning. A customer clicking "Confirm" on a row
+                        expects to close the ticket; it navigates.
+
+                        The accessible name carries the reference, because a
+                        screen reader otherwise announces twenty-five buttons
+                        all called "Open" with nothing to tell them apart. */}
                     <Button
+                      aria-label={t('action.openTicket', { reference: ticket.reference })}
                       onClick={() => {
                         onOpen(ticket.id);
                       }}
                     >
-                      {t('action.confirm')}
+                      {t('action.open')}
                     </Button>
                   </td>
                 </tr>

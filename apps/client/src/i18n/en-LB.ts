@@ -16,6 +16,8 @@ export const enLB = {
     save: 'Save',
     cancel: 'Cancel',
     confirm: 'Confirm',
+    open: 'Open',
+    openTicket: 'Open ticket {{reference}}',
     filter: 'Filter',
     retry: 'Try again',
     signIn: 'Sign in',

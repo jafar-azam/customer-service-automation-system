@@ -55,15 +55,23 @@ function useCountdown(from: number): [number, () => void] {
  * error worth showing. Without this a reviewer cannot sign in at all: the code
  * is deliberately never logged and never returned by the auth API.
  */
-function DevInbox(): JSX.Element | null {
+function DevInbox({ reloadToken }: { readonly reloadToken: number }): JSX.Element | null {
   const { t } = useTranslation();
   const [messages, setMessages] = useState<DevMessage[] | undefined>();
 
+  /* Re-fetched whenever a code is sent, not only on mount.
+     
+     Fetching once was a complete failure of the panel's purpose. The reviewer
+     loads the page, the list is read, they ask for a code — and the panel
+     still shows the *previous* codes, because nothing told it to look again.
+     They read the top line, type a stale code, and are told it is not valid,
+     with no way to tell that the list is simply out of date. The one thing
+     this panel exists to do is let somebody sign in. */
   useEffect(() => {
     void getDevInbox().then((result) => {
       if (result.ok) setMessages(result.data.messages);
     });
-  }, []);
+  }, [reloadToken]);
 
   if (messages === undefined) return null;
 
@@ -97,6 +105,8 @@ export function SignIn(): JSX.Element {
   const [error, setError] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
   const [cooldown, startCooldown] = useCountdown(RESEND_COOLDOWN_SECONDS);
+  /* Bumped after a code is sent, so the dev inbox below reloads. */
+  const [inboxToken, setInboxToken] = useState(0);
 
   const send = async () => {
     setBusy(true);
@@ -119,6 +129,7 @@ export function SignIn(): JSX.Element {
 
     setStep('code');
     startCooldown();
+    setInboxToken((token) => token + 1);
   };
 
   const verify = async () => {
@@ -228,7 +239,7 @@ export function SignIn(): JSX.Element {
         </Card>
       )}
 
-      <DevInbox />
+      <DevInbox reloadToken={inboxToken} />
     </section>
   );
 }

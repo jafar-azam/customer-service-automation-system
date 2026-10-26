@@ -207,6 +207,33 @@ describe('the history screen', () => {
     expect(onOpen).toHaveBeenCalledWith('507f1f77bcf86cd799439011');
   });
 
+  /**
+   * The button says what it does.
+   *
+   * It called `onOpen` while reading `action.confirm`, so every row offered
+   * "Confirm" and then navigated. Generic wording when the list was built;
+   * actively wrong once step 16 made confirming a resolution a real action a
+   * customer can take, with its own consequences. The test above clicked
+   * `getByRole('button')` without looking at the name, which is why it
+   * survived — so the name is asserted here.
+   */
+  it('names the row button for what it does, not for a different action', async () => {
+    mount(<History onOpen={() => undefined} />);
+
+    const row = (await screen.findByText('CSAS-000123')).closest('tr');
+    const button = within(row as HTMLElement).getByRole('button');
+
+    expect(button.textContent).toBe('Open');
+    expect(button.textContent).not.toBe('Confirm');
+  });
+
+  /* A screen reader otherwise announces twenty-five buttons all called
+     "Open" with nothing to tell them apart. */
+  it('gives each row button an accessible name carrying its reference', async () => {
+    mount(<History onOpen={() => undefined} />);
+    expect(await screen.findByRole('button', { name: 'Open ticket CSAS-000123' })).toBeDefined();
+  });
+
   it('has no axe violations, in both languages', async () => {
     for (const locale of ['en-LB', 'ar-LB'] as Locale[]) {
       const { container, unmount } = mount(<History onOpen={() => undefined} />, locale);

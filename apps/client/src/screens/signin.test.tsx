@@ -206,6 +206,41 @@ describe('the dev inbox', () => {
     mount();
     expect(await screen.findByText(/رمز الدخول/)).toBeDefined();
   });
+
+  /**
+   * The panel's whole job is to let a reviewer sign in.
+   *
+   * It fetched once on mount, so asking for a code left it showing the
+   * *previous* codes. The reviewer read the top line, typed a stale code, and
+   * was told it was not valid — with nothing on screen to suggest the list was
+   * simply out of date. Reported as "I cannot sign in", which is exactly what
+   * it is.
+   */
+  it('reloads after a code is sent, so the new code is the one on screen', async () => {
+    const message = (id: string, code: string) => ({
+      id,
+      channel: 'whatsapp',
+      kind: 'otp',
+      to: '+9617010••••',
+      body: `رمز الدخول إلى C.S.A.S هو ${code}.`,
+      status: 'sent',
+      at: '2026-10-26T05:00:00Z',
+    });
+
+    routes.set('/api/dev/inbox', [200, { messages: [message('n1', '111111')] }]);
+    const user = userEvent.setup();
+    mount();
+    expect(await screen.findByText(/111111/)).toBeDefined();
+
+    /* The code that the request below generates. */
+    routes.set('/api/dev/inbox', [
+      200,
+      { messages: [message('n2', '222222'), message('n1', '111111')] },
+    ]);
+    await enterPhone(user);
+
+    expect(await screen.findByText(/222222/)).toBeDefined();
+  });
 });
 
 describe('accessibility', () => {
