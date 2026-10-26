@@ -3,6 +3,12 @@
 Read this before touching anything. It is the short form; the reasoning lives in
 `docs/steps/NN-*/README.md`, which is the real record.
 
+**Starting a session: read [`docs/HANDOVER.md`](docs/HANDOVER.md) first.** It says
+which step is next, what is half-finished, where the plan has been deliberately
+departed from, and which loose ends are still open — the things the step
+READMEs cannot say because they describe finished work. This file is loaded
+automatically; that one is not, so this line is the pointer to it.
+
 ## What this project is, and what it is not
 
 C.S.A.S is a **portfolio release**: it runs entirely on one laptop, costs
