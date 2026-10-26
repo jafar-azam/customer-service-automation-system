@@ -21,7 +21,7 @@ L2 · A0x = OWASP Top 10 2021 · API0x = OWASP API Security Top 10 2023 ·
 LLM0x = OWASP Top 10 for LLM Applications 2025.
 
 Counts as of step 17, re-derived from the table by `npm run audit:checklist`
-rather than written by hand: **103 done, 31 planned, 1 accepted**. (The numbered
+rather than written by hand: **104 done, 31 planned, 1 accepted**. (The numbered
 rows count one `accepted`; the five further acceptances have no requirement id
 because they are infrastructure decisions, and are listed at the end.)
 
@@ -180,7 +180,8 @@ because they are infrastructure decisions, and are listed at the end.)
 
 | # | Requirement | Std | Control | Code | Test | Status |
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-| 13.1 | Rate limits on all routes, strict on sensitive ones | API04 | Redis limiter: strict per-number/IP/prefix layers on OTP, an ordinary per-account layer on the ticket routes. Keyed on the authenticated actor, so one office NAT is not one budget and a changed address does not buy a fresh quota | `services/rate-limit.ts`, `http/rate-limit-middleware.ts` | 16 limiter tests; flood refused with `Retry-After`; limit charged per account not per address | **done** |
+| 13.1 | Rate limits on all routes, strict on sensitive ones | API04 | Redis limiter: strict per-number/IP/prefix layers on OTP, an ordinary per-account layer on the ticket routes. Keyed on the authenticated actor, so one office NAT is not one budget and a changed address does not buy a fresh quota | `services/rate-limit.ts`, `http/rate-limit-middleware.ts` | 17 limiter tests; flood refused with `Retry-After`; limit charged per account not per address; verified live (every `rl:` key carries a TTL) | **done** |
+| 13.6 | A counter cannot strand a subject permanently | API04 | Counting and setting the window are one Lua script, so no interruption can leave a counter without a TTL — and a key that has somehow lost one is repaired on the next hit. A malformed reply throws rather than comparing `NaN`, so the limiter fails closed | `services/rate-limit.ts` | "repairs a counter that has lost its expiry"; "does not extend the window on later hits" | **done** |
 | 13.2 | Bot protection on the contact form | — | Challenge plus honeypot | `routes/contact` | automated submission refused | step 32 |
 | 13.3 | Metric labels bounded | — | Route pattern or `unmatched` | `observability/metrics.ts` | "collapses unmatched paths" | **done** |
 | 13.4 | Jobs idempotent and bounded | — | Every write is guarded by the absence of the mark it sets — `breachedAt`, `warningSentAt`, `deletedAt` — **in the query**, not in a prior read. Repeatable jobs use a fixed scheduler id so a restart replaces the entry instead of doubling the frequency. Retries are bounded with exponential backoff and completed/failed lists are capped | `jobs/queues.ts`, `jobs/sla-sweep.ts` | second sweep escalates 0 and audits once; three schedule calls leave one scheduler | **done** |

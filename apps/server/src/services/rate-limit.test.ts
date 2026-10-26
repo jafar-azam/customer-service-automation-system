@@ -68,6 +68,32 @@ describe('counting hits', () => {
     expect(second).toBeLessThan(first);
   });
 
+  /**
+   * The failure the atomic script exists to prevent.
+   *
+   * `INCR` then `EXPIRE` as two commands leaves a window in which the counter
+   * exists with no TTL. Anything that stops the second command landing — a
+   * dropped connection, a failover, a restart — strands the key, and the
+   * subject is then refused **forever** with nothing in the system
+   * reconsidering it. On the OTP limit, keyed per phone number, that is a
+   * customer who can never sign in again.
+   */
+  it('repairs a counter that has lost its expiry', async () => {
+    const rule_ = { name: 'stranded', limit: 2, windowSeconds: 60 };
+
+    /* Exactly what the old two-command version could leave behind. */
+    await redis.set('rl:stranded:subject', '5');
+    expect(await redis.ttl('rl:stranded:subject')).toBe(-1);
+
+    const result = await hit(rule_, 'subject');
+
+    expect(result.allowed).toBe(false);
+    /* It still refuses — the count is genuinely over — but the key now has a
+       TTL, so the refusal ends instead of lasting forever. */
+    expect(await redis.ttl('rl:stranded:subject')).toBeGreaterThan(0);
+    expect(result.retryAfterSeconds).toBeGreaterThan(0);
+  });
+
   it('starts again once the window passes', async () => {
     const quick = { name: 'quick', limit: 1, windowSeconds: 1 };
     expect((await hit(quick, 'subject')).allowed).toBe(true);

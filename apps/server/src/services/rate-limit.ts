@@ -39,23 +39,72 @@ function key(rule: LimitRule, subject: string): string {
 }
 
 /**
- * Counts one hit against one rule.
+ * Count one hit, and make sure the counter has an expiry — in one step.
  *
- * The expiry is set only on the first hit of a window. Setting it on every hit
- * would slide the window forward with each request, so a caller sending
- * steadily would never see it reset — a limit that quietly becomes permanent.
+ * This was two commands, `INCR` then `EXPIRE` when the counter came back as 1.
+ * Between them the counter exists with **no TTL**, and anything that stops the
+ * second command landing — a dropped connection, a failover, a restart —
+ * leaves a key that never expires. The limit for that subject then becomes
+ * permanent: they are refused forever, and nothing in the system ever
+ * reconsiders it. For an OTP limit keyed on a phone number, that is a customer
+ * who can no longer sign in.
+ *
+ * It showed up first as a flaky test — "starts again once the window passes"
+ * failing about once in six full-suite runs, which is the same fault seen from
+ * the outside.
+ *
+ * The script also **repairs** a key that has lost its expiry (`TTL` of -1),
+ * so a counter stranded by the old code heals on the next request rather than
+ * needing someone to notice it.
+ *
+ * The expiry is still only set when there is none, never refreshed. Refreshing
+ * on every hit would slide the window forward with each request, so a caller
+ * sending steadily would never see it reset — the same permanent limit by a
+ * different route.
  */
+const COUNT_AND_EXPIRE = `
+  local current = redis.call('INCR', KEYS[1])
+  local ttl = redis.call('TTL', KEYS[1])
+  if ttl < 0 then
+    redis.call('EXPIRE', KEYS[1], ARGV[1])
+    ttl = tonumber(ARGV[1])
+  end
+  return { current, ttl }
+`;
+
 export async function hit(
   rule: LimitRule,
   subject: string,
   redis: Redis = getRedis(),
 ): Promise<LimitResult> {
   const redisKey = key(rule, subject);
-  const current = await redis.incr(redisKey);
-  if (current === 1) await redis.expire(redisKey, rule.windowSeconds);
+
+  /* `eval` runs the whole script atomically: Redis is single-threaded and a
+     script is one unit of work, so no other command can observe the counter
+     between the increment and the expiry. */
+  const reply: unknown = await redis.eval(
+    COUNT_AND_EXPIRE,
+    1,
+    redisKey,
+    String(rule.windowSeconds),
+  );
+
+  /* Checked rather than cast. `eval` is typed `unknown` because the reply
+     shape is whatever the script returns, and asserting a tuple here would
+     turn a malformed reply into `NaN > rule.limit` — which is `false`, so the
+     limiter would silently let everything through. Failing closed is the only
+     safe reading for a control whose job is to refuse. */
+  /* `Array.isArray` narrows to `any[]`, so the elements are read through an
+     `unknown[]` view rather than destructured straight out of it. */
+  const parts: readonly unknown[] = Array.isArray(reply) ? (reply as unknown[]) : [];
+  const [rawCurrent, rawTtl] = parts;
+  if (typeof rawCurrent !== 'number') {
+    throw new TypeError(`rate limiter: unexpected reply for ${rule.name}`);
+  }
+  const current = rawCurrent;
+  const ttl = typeof rawTtl === 'number' ? rawTtl : rule.windowSeconds;
 
   if (current > rule.limit) {
-    const ttl = await redis.ttl(redisKey);
     return {
       allowed: false,
       rule,

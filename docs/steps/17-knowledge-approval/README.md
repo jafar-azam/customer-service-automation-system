@@ -242,12 +242,49 @@ recipient and breaks the remaining tie on `_id`, with a regression test that
 writes two codes at an identical timestamp and asserts each number gets its own.
 Six consecutive full-suite runs clean.
 
+## 7b. The second flake was a real defect
+
+With the fixture fixed, one test still failed about once in eight full runs:
+`starts again once the window passes`, in the rate limiter.
+
+That one was not a test problem. `hit` was two commands:
+
+```ts
+const current = await redis.incr(redisKey);
+if (current === 1) await redis.expire(redisKey, rule.windowSeconds);
+```
+
+Between them the counter exists **with no TTL**. Anything that stops the second
+command landing — a dropped connection, a failover, a restart — leaves a key
+that never expires, and the limit for that subject becomes permanent. Nothing in
+the system ever reconsiders it. On the OTP limit, which is keyed per phone
+number, that is a customer who can no longer sign in, with no error anyone would
+connect to the cause.
+
+The flaky test was that fault seen from the outside.
+
+Both operations are now one Lua script — Redis is single-threaded and a script
+is one unit of work, so nothing can observe the counter in between. The script
+also **repairs** a key whose TTL is -1, so a counter stranded by the old code
+heals on the next request instead of waiting for someone to notice it. The
+expiry is still only set when there is none, never refreshed: refreshing on
+every hit would slide the window forward with each request and produce the same
+permanent limit by a different route.
+
+The reply is checked rather than cast. `eval` is typed `unknown`, and asserting
+a tuple would turn a malformed reply into `NaN > rule.limit` — which is `false`,
+so the limiter would silently let everything through. A control whose job is to
+refuse has to fail closed.
+
+Verified live: seven code requests for one number gave `202 429 429 429 429 429
+429`, and every `rl:` key in Redis carries a TTL.
+
 ## 8. How to verify
 
 ```bash
-npx vitest run                 # 60 files, 1038 tests
+npx vitest run                 # 60 files, 1039 tests
 node scripts/smoke/smoke.mjs   # 44 checks through nginx
-npm run audit:checklist        # 135 requirements — 103 done, 31 planned, 1 accepted
+npm run audit:checklist        # 136 requirements — 104 done, 31 planned, 1 accepted
 ```
 
 The round trip by hand, as an admin:
@@ -302,3 +339,4 @@ as the `csv-parse` already in use).
 - [x] Citations shown, audience-scoped, title frozen, `<bdi>` isolated
 - [x] `CHECKLIST.md` section 20, ten rows, all **done**
 - [x] The flaky OTP fixture replaced by one recipient-filtered helper
+- [x] The rate limiter made atomic, and self-repairing for stranded counters
