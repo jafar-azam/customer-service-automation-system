@@ -115,6 +115,29 @@ export const enLB = {
     invalidPhone:
       'That is not a valid phone number. A Lebanese mobile starts with 03, 70, 71, 76, 78, 79 or 81.',
   },
+  signIn: {
+    title: 'Sign in',
+    lead: 'Support is for customers with a maintenance contract. Enter the mobile number on your contract and we will send you a one-time code.',
+    phone: 'Mobile number',
+    phoneHint: 'A Lebanese mobile, for example 03 123 456',
+    sendCode: 'Send me a code',
+    codeTitle: 'Enter the code',
+    codeLead:
+      'If that number is on a contract, a code is on its way to {{phone}}. It is valid for five minutes.',
+    code: 'Six-digit code',
+    verify: 'Sign in',
+    resend: 'Send another code',
+    resendIn: 'You can ask for another code in {{seconds}} seconds',
+    changeNumber: 'Use a different number',
+    signOut: 'Sign out',
+    signedInAs: 'Signed in as {{name}}',
+    devInbox: 'Dev inbox',
+    devInboxLead:
+      'Demonstration mode: messages are not really sent. This is what would have gone out.',
+    devInboxEmpty: 'Nothing sent yet.',
+    contractExpired:
+      'The maintenance contract on this account is not active, so support is not available. Please contact us to renew it.',
+  },
   error: {
     unauthenticated: 'Please sign in to see your tickets.',
     forbidden: 'You do not have access to that.',

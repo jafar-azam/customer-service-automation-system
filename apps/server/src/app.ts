@@ -12,6 +12,7 @@ import { customerAuthRouter } from './routes/customer-auth.js';
 import { ticketRouter } from './routes/tickets.js';
 import { attachmentRouter } from './routes/attachments.js';
 import { preferencesRouter } from './routes/preferences.js';
+import { devInboxRouter } from './routes/dev-inbox.js';
 import { createStorage, type StorageProvider } from './services/providers/storage.js';
 import { createScanner, type FileScanner } from './services/providers/virus-scan.js';
 import { NullTicketEvents, type TicketEvents } from './realtime/events.js';
@@ -108,6 +109,11 @@ export function createApp({
   app.use('/api/tickets', ticketRouter({ env, logger, events, audience: 'staff' }));
 
   app.use('/api/customer/preferences', preferencesRouter({ env, logger }));
+
+  /* Not mounted at all unless DEMO_MODE is on, so the path 404s rather than
+     403s when it is off — an endpoint that answers "forbidden" tells you it
+     exists. The flag is refused in production by the env validator. */
+  if (env.DEMO_MODE) app.use('/api/dev/inbox', devInboxRouter({ env }));
 
   /* Mounted at the API root rather than under /tickets, because a download URL
      addresses the attachment and not the ticket it happens to hang from. */

@@ -44,7 +44,12 @@ const NETWORK_ERROR: ApiErrorBody = {
 
 export async function api<T>(
   path: string,
-  options: { method?: string; body?: unknown; signal?: AbortSignal } = {},
+  options: {
+    method?: string;
+    body?: unknown;
+    signal?: AbortSignal;
+    headers?: Record<string, string>;
+  } = {},
 ): Promise<ApiResult<T>> {
   try {
     const response = await fetch(path, {
@@ -52,6 +57,7 @@ export async function api<T>(
       headers: {
         ...(options.body === undefined ? {} : { 'content-type': 'application/json' }),
         ...(accessToken === undefined ? {} : { authorization: `Bearer ${accessToken}` }),
+        ...options.headers,
       },
       ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
       ...(options.signal === undefined ? {} : { signal: options.signal }),

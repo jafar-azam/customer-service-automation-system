@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App.js';
 import { LocaleProvider } from './locale-context.js';
+import { SessionProvider } from './session.js';
 import { ThemeProvider } from './theme.js';
 
 /* Order matters: tokens define the custom properties that base.css and every
@@ -26,7 +27,9 @@ createRoot(container).render(
   <StrictMode>
     <ThemeProvider>
       <LocaleProvider>
-        <App />
+        <SessionProvider>
+          <App />
+        </SessionProvider>
       </LocaleProvider>
     </ThemeProvider>
   </StrictMode>,

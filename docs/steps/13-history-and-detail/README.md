@@ -164,10 +164,6 @@ and the original still reads `status: "closed"` with its `closedAt` intact.
 
 ## 6. What this step does not do
 
-- **No customer sign-in screen.** The OTP API has worked since step 08 and the
-  smoke test drives it, but there is no UI for it — so the screens show their
-  signed-out state in a browser. That is the next thing the client needs, and
-  it is not in this step's scope.
 - **No staff screens.** The agent queue is step 29.
 - **No pagination control.** The server reports `total` and accepts `limit` and
   `before`; the client asks for 25 and does not yet offer a second page.
@@ -177,6 +173,83 @@ and the original still reads `status: "closed"` with its `closedAt` intact.
   `REVIEW-PACK.md` is the plan.
 
 ---
+
+## 6a. Sign-in, added after the fact
+
+Step 13 originally shipped without one: the OTP API had worked since step 08,
+but no UI called it, so in a browser every screen correctly showed its
+signed-out state and nothing more. Four steps of customer-facing work that
+nobody could actually see. It was built immediately afterwards and is part of
+the same phase.
+
+**The access token lives in memory, never in `localStorage`.** Anything in
+local storage is readable by any script that reaches this origin, so one XSS
+becomes a stolen session that outlives the page. The thing that survives a
+reload is the refresh cookie, which is `httpOnly` and no script can read. The
+cost is one request on load to exchange it — which is what the cookie is for.
+
+**The session has three states, not two.** "We do not know yet" is real: the
+refresh request takes a moment, and rendering the sign-in form during it would
+flash a login screen at someone already signed in, on every reload.
+
+**The second step is reached whatever the server says about the first.**
+`request-code` answers identically for a number on a contract, a number that
+is not, and one the kill switch has suppressed — that is the anti-enumeration
+property step 08 built and tested. A screen that only advanced on "we sent it"
+would hand the distinction straight back, so the wording is conditional by
+design: *if* that number is on a contract, a code is on its way. The only
+refusals shown are a rate limit and a malformed number, because a client that
+cannot see those retries into a wall.
+
+**An inactive contract is a state, not an error.** They are who they say they
+are; the answer is about their contract.
+
+### The dev inbox
+
+A reviewer with no phone cannot sign in otherwise — the code is deliberately
+never logged and never returned by the auth API. `GET /api/dev/inbox` shows
+what would have been sent, as section 0 of the specification describes.
+
+Three guards, because it hands out one-time codes: the router is **not mounted
+at all** unless `DEMO_MODE` is on, so the path 404s rather than 403s (an
+endpoint that answers "forbidden" tells you it exists); the flag is re-checked
+per request; and the env validator refuses `DEMO_MODE` when
+`NODE_ENV=production`.
+
+The obvious alternative — returning the code in the `request-code` response
+under `DEMO_MODE` — was rejected. It would make a known number's answer differ
+from an unknown one, which is the exact property step 08 exists to protect.
+There is a test asserting the two responses stay byte-identical.
+
+### What the run proved
+
+```
+1. request a code     → 202
+2. read the dev inbox → 964935 (+961***001)
+3. verify             → 200 | entitlement: active
+4. who am I           → Rania Haddad · Cedar Pharmaceuticals · ends in 001
+5. my tickets         → 34 total
+6. restore on reload  → 200 (new access token from the cookie)
+   csrf rotated by refresh → true
+7. sign out           → 204
+8. refresh after that → 403 (must not be 200)
+```
+
+Line 8 is the one worth reading twice: logging out genuinely revokes the
+session family, so the refresh cookie is dead rather than merely forgotten.
+
+Line 6 also caught a driver bug that is worth recording, because it would have
+been a real client bug: **the refresh rotates the CSRF cookie**, so a copy
+captured before it is stale. The browser client reads `document.cookie` at
+call time and is unaffected; a client that cached the token at sign-in would
+have had its first logout after a reload fail with `csrf_failed`.
+
+### And step 10's demo content is gone
+
+`App.tsx` carried a fabricated ticket table and chat card from step 10, built
+to show the component library rendering itself. The real screens now exercise
+the same components against real data, and leaving a second, fake ticket table
+on the page would be an invitation to wonder which one is true.
 
 ## 7. What you must configure
 
@@ -196,4 +269,8 @@ Nothing. `TICKET_REOPEN_WINDOW_DAYS` defaults to 14 and is in `.env.example`.
 - [x] Notification preferences, saved on change, consent audited
 - [x] Errors read by the customer, in their language
 - [x] axe clean on every new screen in both languages
+- [x] Customer sign-in, with the access token in memory and the refresh cookie
+      doing the surviving
+- [x] The dev inbox, guarded three ways, without weakening the identical
+      responses it exists alongside
 - [x] The application actually run, and three bugs found by doing so

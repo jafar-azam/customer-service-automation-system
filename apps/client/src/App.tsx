@@ -1,30 +1,25 @@
-import {
-  formatCountdown,
-  formatDate,
-  formatNumber,
-  LOCALES,
-  type Locale,
-  type FormatPreferences,
-} from '@csas/shared';
 import { useEffect, useState, type JSX } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  Button,
-  Callout,
-  Card,
-  Field,
-  Identifier,
-  SegmentedControl,
-  Tag,
-} from './components/index.js';
-import { AlertIcon, ClockIcon, SendIcon } from './components/icons.js';
+import { LOCALES, type Locale } from '@csas/shared';
+import { Button, Callout, Identifier, SegmentedControl } from './components/index.js';
+import { useLocale } from './locale-context.js';
+import { ContractInactive, SignIn } from './screens/SignIn.js';
 import { History } from './screens/History.js';
 import { PreferencesScreen } from './screens/Preferences.js';
 import { TicketDetail } from './screens/TicketDetail.js';
-import { useLocale } from './locale-context.js';
-import { styles } from './components/styles.js';
+import { useSession } from './session.js';
 import { THEMES, useTheme, type Theme } from './theme.js';
 import { appStyles } from './app-styles.js';
+
+/**
+ * The customer application.
+ *
+ * Step 10's demonstration content lived here — a fabricated ticket table and
+ * a chat card, built to show the component library rendering itself. It is
+ * gone: the real screens now exercise the same components against real data,
+ * and leaving a second, fake ticket table on the page would be an invitation
+ * to wonder which one is true.
+ */
 
 interface VersionInfo {
   name: string;
@@ -37,13 +32,7 @@ type ApiState =
   | { status: 'ready'; info: VersionInfo }
   | { status: 'error'; code: string };
 
-/* Demonstration rows. Invented, not drawn from `reference/` — no real customer
-   name, ticket or sentence appears anywhere in this repository. */
-const ROWS = [
-  { reference: 'CSAS-001241', customer: 'Cedar Pharmaceuticals', minutes: 12, tone: 'warning' },
-  { reference: 'CSAS-001240', customer: 'Beirut Logistics', minutes: -40, tone: 'danger' },
-  { reference: 'CSAS-001238', customer: 'Tripoli Textiles', minutes: 400, tone: 'neutral' },
-] as const;
+type View = { readonly name: 'history' } | { readonly name: 'detail'; readonly id: string };
 
 function Settings(): JSX.Element {
   const { locale, setLocale } = useLocale();
@@ -61,7 +50,7 @@ function Settings(): JSX.Element {
       <SegmentedControl<Locale>
         label={t('settings.language')}
         value={locale}
-        /* The name of a language is written in that language. "Arabic" in an
+        /* A language's name is written in that language. "Arabic" in an
            English list is no use to someone who only reads Arabic — which is
            exactly the person who needs the switch. */
         options={LOCALES.map((value) => ({
@@ -80,7 +69,8 @@ function Settings(): JSX.Element {
   );
 }
 
-function ApiStatus(): JSX.Element {
+/** The API reachability check from step 02, kept because it is still useful. */
+function ApiStatus(): JSX.Element | null {
   const { t } = useTranslation();
   const [state, setState] = useState<ApiState>({ status: 'loading' });
 
@@ -100,7 +90,7 @@ function ApiStatus(): JSX.Element {
     };
   }, []);
 
-  if (state.status === 'loading') return <Callout tone="info">{t('state.loading')}</Callout>;
+  if (state.status === 'loading') return null;
   if (state.status === 'error') {
     return (
       <Callout tone="danger">
@@ -108,29 +98,54 @@ function ApiStatus(): JSX.Element {
       </Callout>
     );
   }
+  return null;
+}
+
+function SignedIn({
+  name,
+  onSignOut,
+}: {
+  readonly name: string;
+  readonly onSignOut: () => void;
+}): JSX.Element {
+  const { t } = useTranslation();
+  const [view, setView] = useState<View>({ name: 'history' });
+
   return (
-    <Callout tone="success">
-      <Identifier value={state.info.name} /> <Identifier value={state.info.version} /> ·{' '}
-      <Identifier value={state.info.environment} />
-    </Callout>
+    <>
+      <div className={appStyles.settings}>
+        <span className={appStyles.tagline}>{t('signIn.signedInAs', { name })}</span>
+        <Button onClick={onSignOut}>{t('signIn.signOut')}</Button>
+      </div>
+
+      {/* Two screens, switched by state rather than by a router. A router
+          arrives when there are URLs worth sharing — step 32's public site is
+          where that starts to matter. Adding one now would be a dependency
+          serving a single `if`. */}
+      {view.name === 'detail' ? (
+        <TicketDetail
+          id={view.id}
+          onBack={() => {
+            setView({ name: 'history' });
+          }}
+        />
+      ) : (
+        <>
+          <History
+            onOpen={(id) => {
+              setView({ name: 'detail', id });
+            }}
+          />
+          <PreferencesScreen />
+        </>
+      )}
+    </>
   );
 }
 
-/**
- * The design system, rendering itself.
- *
- * Not a storybook: it is the real application shell with the real components,
- * so switching language or theme here exercises exactly what every later
- * screen will do. Phase 4 replaces the content and keeps the frame.
- */
-type View = { readonly name: 'history' } | { readonly name: 'detail'; readonly id: string };
-
 export function App(): JSX.Element {
-  const { locale } = useLocale();
   const { t } = useTranslation();
-  const [view, setView] = useState<View>({ name: 'history' });
-  const preferences: FormatPreferences = { locale };
-  const now = new Date('2026-10-24T12:30:00Z');
+  const { state, signOut } = useSession();
 
   return (
     <>
@@ -147,101 +162,32 @@ export function App(): JSX.Element {
       </header>
 
       <main id="main" className={appStyles.main}>
-        {/* Two screens and a panel, switched by state rather than by a router.
-            A router arrives when there are URLs worth sharing — step 32 adds
-            the public site, which is where that starts to matter. Adding one
-            now would be a dependency serving a single `if`. */}
-        {view.name === 'detail' ? (
-          <TicketDetail
-            id={view.id}
-            onBack={() => {
-              setView({ name: 'history' });
+        <ApiStatus />
+
+        {/* Three outcomes, and "we do not know yet" is one of them. Rendering
+            the sign-in screen while the refresh request is in flight would
+            flash a login form at someone already signed in, on every reload. */}
+        {state.status === 'restoring' ? (
+          <p role="status">{t('state.loading')}</p>
+        ) : state.status === 'anonymous' ? (
+          <SignIn />
+        ) : state.customer.entitlement.status === 'active' ? (
+          <SignedIn
+            name={state.customer.name}
+            onSignOut={() => {
+              void signOut();
             }}
           />
         ) : (
-          <>
-            <History
-              onOpen={(id) => {
-                setView({ name: 'detail', id });
-              }}
-            />
-            <PreferencesScreen />
-          </>
-        )}
-
-        <h2>{t('page.dashboard')}</h2>
-        <p>{formatDate(now, preferences)}</p>
-
-        <ApiStatus />
-
-        <Card title={t('ticket.count', { count: ROWS.length })} headingLevel="h2">
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th scope="col">{t('ticket.reference')}</th>
-                  <th scope="col">{t('ticket.customer')}</th>
-                  <th scope="col">{t('ticket.deadline')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ROWS.map((row) => (
-                  <tr key={row.reference}>
-                    <td>
-                      <Identifier value={row.reference} />
-                    </td>
-                    <td>{row.customer}</td>
-                    <td>
-                      {row.minutes < 0 ? (
-                        <Tag tone="danger" icon={<AlertIcon />}>
-                          {t('ticket.breached')}
-                        </Tag>
-                      ) : (
-                        <Tag
-                          tone={row.tone === 'warning' ? 'warning' : 'neutral'}
-                          icon={<ClockIcon />}
-                        >
-                          {formatCountdown(row.minutes * 60_000, preferences)}
-                        </Tag>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-
-        <Card title={t('chat.assistant')} headingLevel="h2">
-          <p className={appStyles.meta}>
-            <Identifier value="CSAS-001240" /> · {t('chat.confidence')}{' '}
-            {formatNumber(0.88, preferences)}
-          </p>
-
-          {/* BIDI-03. The direction belongs to the message, not to the
-              interface: this Arabizi line resolves LTR inside an Arabic page,
-              and it is never tagged `lang="en"` — it is Arabic written in
-              Latin characters, and that tag would have a screen reader
-              pronounce it with an English voice. */}
-          <p className={appStyles.bubble} dir="auto">
-            el printer 3am ya3mel error ba3ed l update, chou badna na3mel?
-          </p>
-
-          <Field
-            label={t('chat.composerLabel')}
-            placeholder={t('chat.composerPlaceholder')}
-            /* Free text of unknown script — Arabic, Arabizi or English. */
-            dir="auto"
+          /* Signed in, but no live contract. A separate state rather than an
+             error: they are who they say they are, and the answer is about
+             their contract rather than their identity. */
+          <ContractInactive
+            onSignOut={() => {
+              void signOut();
+            }}
           />
-
-          <div className={appStyles.actions}>
-            <Button variant="primary">
-              <SendIcon />
-              {t('action.send')}
-            </Button>
-            <Button variant="quiet">{t('chat.escalate')}</Button>
-          </div>
-        </Card>
+        )}
       </main>
     </>
   );
