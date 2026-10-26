@@ -1,9 +1,60 @@
-import { useState, type JSX } from 'react';
+import { useEffect, useState, type JSX } from 'react';
 import { useTranslation } from 'react-i18next';
+import { getDevInbox, type DemoAdminTotp } from '../api/auth.js';
 import { describeError } from '../api/errors.js';
 import { staffLogin } from '../api/staff-auth.js';
-import { Button, Callout, Card, Field } from '../components/index.js';
+import { Button, Callout, Card, Field, Identifier } from '../components/index.js';
 import { screens } from './screen-styles.js';
+
+/**
+ * The demo second factor.
+ *
+ * Admin 2FA is mandatory and the code is never written down anywhere a
+ * reviewer can reach, so without this panel a fresh clone cannot open the
+ * staff interface at all — which is how this was reported: "staff cannot open
+ * as the auth 6 digits".
+ *
+ * It re-reads on its own, because a TOTP code lasts thirty seconds and a
+ * number that has silently expired is worse than no number: it reads as a
+ * rejected password rather than a stale code.
+ *
+ * Renders nothing when the endpoint is absent — it is not mounted outside
+ * `DEMO_MODE`, so a 404 is the ordinary production answer rather than a fault.
+ */
+function DemoSecondFactor(): JSX.Element | null {
+  const { t } = useTranslation();
+  const [totp, setTotp] = useState<DemoAdminTotp | undefined>();
+
+  useEffect(() => {
+    let live = true;
+    const read = () => {
+      void getDevInbox().then((result) => {
+        if (live && result.ok) setTotp(result.data.adminTotp);
+      });
+    };
+    read();
+    /* Every five seconds rather than at the exact expiry: the window is
+       thirty seconds and the server accepts a step either side, so the panel
+       does not need to be precise, only never stale for long. */
+    const timer = setInterval(read, 5000);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, []);
+
+  if (totp === undefined) return null;
+
+  return (
+    <Card title={t('staff.demoTitle')} headingLevel="h2">
+      <p className={screens.muted}>{t('staff.demoLead')}</p>
+      <p>
+        <Identifier value={totp.email} /> · <Identifier value={totp.code} />
+      </p>
+      <p className={screens.muted}>{t('staff.demoExpires', { count: totp.expiresInSeconds })}</p>
+    </Card>
+  );
+}
 
 /**
  * Signing in as staff.
@@ -118,6 +169,8 @@ export function StaffSignIn({ onBack }: { readonly onBack: () => void }): JSX.El
           </div>
         </form>
       </Card>
+
+      <DemoSecondFactor />
     </section>
   );
 }

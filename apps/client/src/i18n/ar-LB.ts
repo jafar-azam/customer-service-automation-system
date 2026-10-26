@@ -69,6 +69,15 @@ export const arLB = {
   },
   staff: {
     signInLink: 'دخول الموظفين',
+    demoTitle: 'وضع العرض',
+    demoExpires_zero: 'تنتهي صلاحيته خلال {{count}} ثانية.',
+    demoExpires_one: 'تنتهي صلاحيته خلال ثانية واحدة.',
+    demoExpires_two: 'تنتهي صلاحيته خلال ثانيتين.',
+    demoExpires_few: 'تنتهي صلاحيته خلال {{count}} ثوانٍ.',
+    demoExpires_many: 'تنتهي صلاحيته خلال {{count}} ثانية.',
+    demoExpires_other: 'تنتهي صلاحيته خلال {{count}} ثانية.',
+    demoLead:
+      'التحقق بخطوتين إلزامي للمدير. هذا الحساب يستخدم سرًّا ثابتًا للعرض، لذا يظهر الرمز الحالي هنا.',
     signInTitle: 'دخول الموظفين',
     signInCard: 'الحساب',
     signIn: 'تسجيل الدخول',

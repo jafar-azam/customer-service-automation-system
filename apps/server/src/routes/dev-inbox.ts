@@ -2,6 +2,7 @@ import type { Env } from '@csas/shared';
 import { Router } from 'express';
 import { Notification } from '../db/models/index.js';
 import { ApiError } from '../http/errors.js';
+import { currentDemoCode } from '../services/auth/totp.js';
 
 /**
  * Every message the system would have sent, for someone with no phone.
@@ -26,6 +27,15 @@ import { ApiError } from '../http/errors.js';
  * `DEMO_MODE` — was rejected. It would make the response for a known number
  * differ from an unknown one, which is exactly the anti-enumeration property
  * step 08 built and tested.
+ *
+ * **It also carries the admin's current second factor**, which step 06 said it
+ * would and nobody implemented. Admin 2FA is mandatory, so a reviewer who
+ * clones this repository and has no authenticator seeded is locked out of
+ * their own demo — the staff interface simply cannot be opened. The secret is
+ * fixed and already written in `.env.example`, so showing the code it
+ * generates reveals nothing that `DEMO_MODE` has not already given away, and
+ * the 2FA code path itself is unchanged: the server still demands a valid code
+ * and still refuses a wrong one.
  */
 
 interface InboxRow {
@@ -59,6 +69,20 @@ export function devInboxRouter({ env }: { readonly env: Env }): Router {
         res.setHeader('cache-control', 'no-store');
         res.json({
           demo: true,
+          /* Absent unless a demo secret is configured, so the panel that
+             renders it disappears rather than showing a blank. */
+          ...(env.DEMO_ADMIN_TOTP_SECRET === undefined
+            ? {}
+            : {
+                adminTotp: {
+                  email: env.SEED_ADMIN_EMAIL,
+                  code: currentDemoCode(env.DEMO_ADMIN_TOTP_SECRET),
+                  /* How long this one lasts, so the screen can say "expires
+                     in N seconds" rather than showing a code that silently
+                     stops working. */
+                  expiresInSeconds: 30 - (Math.floor(Date.now() / 1000) % 30),
+                },
+              }),
           messages: rows.map((row) => ({
             id: String(row._id),
             channel: row.channel,

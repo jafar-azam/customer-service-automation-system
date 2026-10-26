@@ -107,4 +107,18 @@ export interface DevMessage {
 }
 
 /** Only mounted when DEMO_MODE is on; 404 otherwise, which is not an error. */
-export const getDevInbox = () => api<{ messages: DevMessage[] }>('/api/dev/inbox');
+/**
+ * The demo admin's current second factor, when one is configured.
+ *
+ * Admin 2FA is mandatory, so without this a reviewer with no authenticator
+ * seeded cannot open the staff interface at all. Present only under
+ * `DEMO_MODE`, which the environment validator refuses in production.
+ */
+export interface DemoAdminTotp {
+  email: string;
+  code: string;
+  expiresInSeconds: number;
+}
+
+export const getDevInbox = () =>
+  api<{ messages: DevMessage[]; adminTotp?: DemoAdminTotp }>('/api/dev/inbox');

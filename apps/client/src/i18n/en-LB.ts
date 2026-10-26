@@ -62,6 +62,11 @@ export const enLB = {
   },
   staff: {
     signInLink: 'Staff sign in',
+    demoTitle: 'Demonstration mode',
+    demoLead:
+      'Two-factor is required for an admin. This account uses a fixed demo secret, so the current code is shown here.',
+    demoExpires_one: 'Expires in {{count}} second.',
+    demoExpires_other: 'Expires in {{count}} seconds.',
     signInTitle: 'Staff sign in',
     signInCard: 'Your account',
     signIn: 'Sign in',

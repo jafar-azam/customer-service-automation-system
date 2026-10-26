@@ -319,6 +319,34 @@ describe('the approval queue', () => {
 /* ── Signing in ─────────────────────────────────────────────────────────── */
 
 describe('staff sign-in', () => {
+  /**
+   * Admin two-factor is mandatory, and the code is written down nowhere a
+   * reviewer can reach — so a fresh clone could not open the staff interface
+   * at all. Step 06 said the dev inbox would show it; nothing implemented
+   * that until it was reported as "staff cannot open as the auth 6 digits".
+   */
+  it('shows the demo code, because an admin cannot sign in without one', async () => {
+    routes.set('/api/dev/inbox', {
+      messages: [],
+      adminTotp: { email: 'admin@csas.local', code: '123456', expiresInSeconds: 21 },
+    });
+    mount(<StaffSignIn onBack={() => undefined} />);
+
+    expect(await screen.findByText('123456')).toBeDefined();
+    expect(screen.getByText('admin@csas.local')).toBeDefined();
+    /* Said out loud, because a code that has silently expired reads as a
+       rejected password rather than a stale number. */
+    expect(screen.getByText(/Expires in 21 seconds/)).toBeDefined();
+  });
+
+  /* Not mounted outside `DEMO_MODE`, so a 404 is the ordinary production
+     answer and must not surface as an error or an empty panel. */
+  it('shows nothing when the endpoint is absent', async () => {
+    mount(<StaffSignIn onBack={() => undefined} />);
+    await screen.findByLabelText(/Email address/);
+    expect(screen.queryByText(/Demonstration mode/)).toBeNull();
+  });
+
   /* The client does not decide in advance whether an account needs a second
      factor — knowing which accounts are admins before anyone authenticates is
      an enumeration oracle. */
