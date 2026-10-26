@@ -69,6 +69,9 @@ export async function respond(
         /* The version actually used. An entry edited tomorrow must not change
            what the assistant is recorded as having cited today. */
         version: citation.version,
+        /* Frozen with the version, so a transcript keeps naming what the
+           entry was called when it was cited. */
+        title: citation.title,
         score: citation.score,
       })),
       confidence: outcome.confidence,

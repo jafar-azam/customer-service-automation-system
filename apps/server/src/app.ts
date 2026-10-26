@@ -14,6 +14,7 @@ import { attachmentRouter } from './routes/attachments.js';
 import { preferencesRouter } from './routes/preferences.js';
 import { devInboxRouter } from './routes/dev-inbox.js';
 import { assistantRouter } from './routes/assistant.js';
+import { knowledgeRouter } from './routes/knowledge.js';
 import { createEmbeddings, type EmbeddingsProvider } from './services/providers/embeddings.js';
 import { createLlm, type LlmProvider } from './services/providers/llm.js';
 import { KnowledgeIndex } from './services/rag/retrieve.js';
@@ -142,6 +143,9 @@ export function createApp({
   app.use('/api/tickets', ticketRouter({ env, logger, events, audience: 'staff' }));
 
   app.use('/api/customer/preferences', preferencesRouter({ env, logger }));
+  /* Staff only, and there is deliberately no customer counterpart: a customer
+     reaches knowledge through a cited answer, never by browsing it. */
+  app.use('/api/knowledge', knowledgeRouter({ env, logger, index: knowledgeIndex, embeddings }));
   app.use(
     '/api/customer/tickets',
     assistantRouter({ env, logger, index: knowledgeIndex, embeddings, llm, events }),

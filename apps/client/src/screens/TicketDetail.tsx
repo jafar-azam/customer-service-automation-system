@@ -197,6 +197,33 @@ export function TicketDetail({
               <div className={screens.body} dir="auto">
                 {message.body}
               </div>
+              {/* What the answer was grounded in. The server refuses to send
+                  an assistant answer that cites nothing, and showing the
+                  citation is what turns that guarantee into something a
+                  reader can check. The version is part of it: the entry may
+                  have been rewritten since, and this names what was used. */}
+              {message.citations === undefined || message.citations.length === 0 ? null : (
+                <p className={screens.muted}>
+                  {t('chat.basedOn')}{' '}
+                  {message.citations.map((citation, position) => (
+                    <span key={`${citation.title ?? ''}-${String(position)}`}>
+                      {position === 0 ? '' : '، '}
+                      {/* `<bdi>` and not a plain span: an Arabic title sitting
+                          inside an English line is a bidi boundary, and
+                          without isolation a title that ends in Latin text or
+                          a digit reorders the parenthetical after it — the
+                          version ends up on the wrong side of the title. This
+                          is the one element whose whole job is to stop that. */}
+                      <bdi>{citation.title ?? ''}</bdi>
+                      {citation.version === null
+                        ? null
+                        : ` ${t('chat.version', {
+                            version: formatNumber(citation.version, preferences),
+                          })}`}
+                    </span>
+                  ))}
+                </p>
+              )}
             </article>
           ))}
         </div>

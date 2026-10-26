@@ -167,6 +167,7 @@ export const Ticket = model('Ticket', ticketSchema, 'tickets');
 interface Citation {
   kbEntryId: Types.ObjectId;
   version: number;
+  title?: string;
   score?: number;
 }
 
@@ -176,6 +177,11 @@ const citationSchema = new Schema<Citation>(
     /** The version that was actually used. An entry edited later must not
         change what the assistant is recorded as having cited. */
     version: { type: Number, required: true, min: 1 },
+    /** The title as it read at the time, frozen for the same reason as the
+        version: showing the *current* title beside an old version number would
+        describe the citation as something it was not. A customer sees this and
+        never the id, having nothing to look an id up in. */
+    title: { type: String, maxlength: 200 },
     score: { type: Number, min: 0, max: 1 },
   },
   { _id: false },

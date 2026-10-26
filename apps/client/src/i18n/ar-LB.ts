@@ -145,6 +145,8 @@ export const arLB = {
     agent: 'موظف الدعم',
     system: 'النظام',
     knowledgeBase: 'قاعدة المعرفة',
+    basedOn: 'استنادًا إلى:',
+    version: '(النسخة {{version}})',
     confidence: 'الثقة',
     composerLabel: 'نص الرد',
     composerPlaceholder: 'نص الرد…',

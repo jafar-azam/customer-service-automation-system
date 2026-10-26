@@ -7,6 +7,7 @@ import {
   type Locale,
 } from '@csas/shared';
 import { Router, type Request } from 'express';
+import type { Types } from 'mongoose';
 import type { Logger } from 'pino';
 import { z } from 'zod';
 import { requireCustomer, requireStaff } from '../http/authenticate.js';
@@ -235,7 +236,7 @@ export function ticketRouter(options: TicketRouterOptions): Router {
   router.get('/:id/messages', validate({ params: idSchema }), (req, res, next) => {
     listMessages(scopeFor(req, audience), ticketId(req))
       .then((messages) => {
-        res.json({ messages: messages.map((message) => presentMessage(message)) });
+        res.json({ messages: messages.map((message) => presentMessage(message, audience)) });
       })
       .catch(next);
   });
@@ -473,15 +474,64 @@ export function present(ticket: {
   };
 }
 
-export function presentMessage(message: {
-  _id: unknown;
-  author: string;
-  body: string;
-  inputForm: string;
-  internal: boolean;
-  confidence?: number;
-  createdAt: Date;
-}): Record<string, unknown> {
+/**
+ * A citation as it reaches the presenter.
+ *
+ * `kbEntryId` is typed rather than `unknown`: a lean document gives an
+ * `ObjectId` and a plain object gives a string, and both stringify correctly —
+ * but `String(unknown)` would also accept something that renders as
+ * `[object Object]` in a response nobody checks.
+ */
+interface PresentableCitation {
+  readonly kbEntryId?: Types.ObjectId | string;
+  readonly version?: number;
+  readonly title?: string;
+}
+
+/**
+ * What the assistant's answer was grounded in.
+ *
+ * Step 15 refuses to send an answer that cites nothing, and records the entry
+ * **and the version** it used — but until step 17 nothing ever showed them, so
+ * the grounding was enforced and invisible. An unverifiable claim that an
+ * answer is grounded is worth about as much as no claim.
+ *
+ * Staff get the entry id, so they can open it. Customers get the title only:
+ * they have no knowledge endpoint to use an id on, and a reference to
+ * something they cannot look at is noise rather than evidence.
+ *
+ * The version is what makes this worth storing. When an entry is edited to v3,
+ * a transcript from last month still names v2 — which is the reason step 17
+ * freezes old versions instead of overwriting them.
+ */
+function presentCitations(
+  citations: readonly PresentableCitation[] | undefined,
+  audience: 'customer' | 'staff',
+): Record<string, unknown>[] {
+  return (citations ?? []).map((citation) => ({
+    ...(audience === 'staff' && citation.kbEntryId !== undefined
+      ? { kbEntryId: citation.kbEntryId.toString() }
+      : {}),
+    version: citation.version ?? null,
+    title: citation.title ?? null,
+  }));
+}
+
+export function presentMessage(
+  message: {
+    _id: unknown;
+    author: string;
+    body: string;
+    inputForm: string;
+    internal: boolean;
+    confidence?: number;
+    citations?: readonly PresentableCitation[];
+    createdAt: Date;
+  },
+  /* Defaults to the narrower audience. A presenter whose safe mode is the
+     opt-in one leaks the first time somebody adds a call site. */
+  audience: 'customer' | 'staff' = 'customer',
+): Record<string, unknown> {
   return {
     id: String(message._id),
     author: message.author,
@@ -489,6 +539,7 @@ export function presentMessage(message: {
     inputForm: message.inputForm,
     internal: message.internal,
     confidence: message.confidence ?? null,
+    citations: presentCitations(message.citations, audience),
     createdAt: message.createdAt,
   };
 }

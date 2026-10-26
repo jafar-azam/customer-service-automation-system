@@ -20,8 +20,8 @@ reports anything that does not hold.
 L2 · A0x = OWASP Top 10 2021 · API0x = OWASP API Security Top 10 2023 ·
 LLM0x = OWASP Top 10 for LLM Applications 2025.
 
-Counts as of step 16, re-derived from the table by `npm run audit:checklist`
-rather than written by hand: **93 done, 31 planned, 1 accepted**. (The numbered
+Counts as of step 17, re-derived from the table by `npm run audit:checklist`
+rather than written by hand: **103 done, 31 planned, 1 accepted**. (The numbered
 rows count one `accepted`; the five further acceptances have no requirement id
 because they are infrastructure decisions, and are listed at the end.)
 
@@ -253,6 +253,27 @@ below are its whole design.
 | 19.1 | Only the customer may confirm a resolution | API01, API05 | Checked in the service, not only at the route, so a later internal caller meets it too. The staff router has no such route at all, so an agent gets a 404 rather than a 403 | `services/resolution.ts`, `routes/tickets.ts` | "refuses an agent confirming their own work"; "cannot confirm another customer's ticket" | **done** |
 | 19.2 | Satisfaction cannot be recorded without being expressed | — | `solved` is required with no default; one rating per ticket, a second submission replaces the first | `routes/tickets.ts`, `services/resolution.ts` | "rejects a body with no answer in it"; "rejects a score outside one to five"; "replaces an earlier rating rather than adding one" | **done** |
 | 19.3 | An escalation notification carries no customer content | — | Reference and link only — it lands on a lock screen (`PRIVACY.md` §5). Assignment and notification happen together: either alone produces a queue nobody watches or a message everybody assumes someone else took | `services/resolution.ts` | "escalates to the on-duty agent…" asserts the reference is present and the subject is not; verified live in MongoDB | **done** |
+
+---
+
+## 20. The knowledge gate
+
+The control that makes the assistant defensible. Retrieval reads only
+`approved` entries, so everything about whether the assistant can be trusted
+reduces to who put an entry into that state and what they looked at first.
+
+| # | Requirement | Std | Control | Code | Test | Status |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| 20.1 | Nothing reaches retrieval without a named human approving it | LLM04, LLM05 | Entries are created `draft` whoever is asking — there is no create-and-approve call. Only an admin may approve; an agent gets a 403. The approving and authoring ids are both recorded | `services/knowledge.ts`, `routes/knowledge.ts` | "creates everything as a draft, never approved"; "refuses to let an agent approve"; smoke walk approves through nginx | **done** |
+| 20.2 | Machine output cannot be rubber-stamped | LLM04 | An entry whose provenance is `generated` is refused at approval while `version === 1` — a person must have edited it | `services/knowledge.ts` | "refuses to approve generated content nobody has edited"; "approves generated content once a person has edited it" | **done** |
+| 20.3 | An approved entry cannot be silently rewritten | LLM05, A01 | A text edit demotes it to `pending_review` and clears the stale approval. Metadata-only edits do not demote, so nobody is trained to click through the queue | `services/knowledge.ts` | "sends an approved entry back for review when its text changes"; "does not demote for a metadata-only edit" | **done** |
+| 20.4 | A concurrent approval approves once | — | The permitted prior statuses are part of the update filter, so the second writer matches nothing | `repositories/knowledge.ts` | "approves once under a double click" | **done** |
+| 20.5 | Knowledge is not browsable by customers, and drafts are not browsable by other agents | API01 | No customer route exists at all. The visibility filter is part of the query, not a check on the result, so another agent's draft 404s rather than 403s | `repositories/knowledge.ts` | "hides another agent's unsubmitted draft"; "is not reachable with a customer session"; "never returns the embedding vector" | **done** |
+| 20.6 | Bulk import cannot bypass the gate | LLM05 | The `status` column is read from the file and discarded; every imported row lands `pending_review`. Rows are capped at 1000 and the body at 2 MB | `services/knowledge-csv.ts` | "ignores the status column"; "rejects a row that still holds the placeholder, naming the line"; smoke walk round-trips 200 rows through nginx | **done** |
+| 20.7 | An export cannot attack the person who opens it | A03 | Cells beginning `=`, `+`, `-`, `@` are prefixed with a quote, so a body reading `=HYPERLINK(…)` does not execute in Excel, Sheets or LibreOffice. The guard is stripped on import, so the round trip is lossless | `services/knowledge-csv.ts` | "neutralises every formula prefix"; "leaves ordinary text alone, including Arabic"; "survives the round trip without the quote sticking" | **done** |
+| 20.8 | Every transition is attributable afterwards | ASVS 7.2 | `kb.created`, `kb.submitted_for_review`, `kb.approved`, `kb.rejected`, `kb.archived`, `kb.imported`, with the author and approver ids in the metadata | `services/knowledge.ts`, `services/knowledge-csv.ts` | audit rows asserted across the workflow tests | **done** |
+| 20.9 | A citation stays explicable after the entry changes | — | Old versions are frozen, capped at 50 per entry; a citation records the version **and the title as it read**. Archiving removes an entry from retrieval without deleting it, so a transcript a customer holds keeps resolving | `services/knowledge.ts`, `db/models/support.ts` | "freezes what the entry said before an edit"; "shows what an assistant answer was grounded in, with the version" | **done** |
+| 20.10 | A customer is shown the grounding, not the internals | API01 | The message presenter takes an audience and defaults to the narrower one; customers get the title and version, staff additionally get the entry id | `routes/tickets.ts` | "gives staff the entry id"; "gives a customer the title and version, never the id"; "defaults to the narrower audience" | **done** |
 
 ---
 

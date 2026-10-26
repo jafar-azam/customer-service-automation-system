@@ -553,6 +553,104 @@ async function main() {
     `got ${unknownHook.status}`,
   );
 
+  /* 11. The approval gate and the CSV round trip (step 17).
+
+     The gate belongs in the smoke walk because it is the control that makes
+     step 15 defensible: if an entry can reach `approved` without a person
+     deciding it should, the citation enforcement and the confidence floor are
+     decoration. The CSV round trip belongs here because nginx is in the path —
+     a proxy that buffers, rewrites or truncates a text body would corrupt an
+     import and the unit tests would never see it. */
+  const kbCreate = await call('POST', '/api/knowledge', {
+    token: staffToken,
+    body: {
+      title: 'Smoke entry',
+      body: 'A placeholder answer written by the smoke walk.',
+      language: 'en',
+    },
+  });
+  const kbId = kbCreate.body?.entry?.id;
+  check(
+    'knowledge is created as a draft',
+    kbCreate.body?.entry?.status === 'draft',
+    kbCreate.status,
+  );
+
+  if (typeof kbId === 'string') {
+    await call('POST', `/api/knowledge/${kbId}/submit`, { token: staffToken });
+
+    /* The admin session the smoke walk already holds is an admin, so this
+       proves the happy path; the agent refusal is covered by the unit tests,
+       which can create a second role cheaply. */
+    const approved = await call('POST', `/api/knowledge/${kbId}/approve`, {
+      token: staffToken,
+      body: {},
+    });
+    check(
+      'an admin can approve, and the entry becomes usable',
+      approved.body?.entry?.status === 'approved',
+      `${approved.status} / ${approved.body?.entry?.status ?? 'none'}`,
+    );
+
+    const exported = await fetch(`${BASE}/api/knowledge/export.csv?status=approved`, {
+      headers: { authorization: `Bearer ${staffToken}` },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    /* The raw bytes, not `.text()`. `Response.text()` decodes as UTF-8 and
+       strips the byte-order mark on the way, per the WHATWG encoding
+       standard — so checking the decoded string reports a missing BOM on a
+       file that has one. The first version of this check did exactly that and
+       failed against a correct server. */
+    const bytes = new Uint8Array(await exported.clone().arrayBuffer());
+    const csv = await exported.text();
+    check(
+      'the export arrives as a CSV attachment with a BOM',
+      exported.headers.get('content-disposition')?.startsWith('attachment;') === true &&
+        bytes[0] === 0xef &&
+        bytes[1] === 0xbb &&
+        bytes[2] === 0xbf,
+      `${exported.headers.get('content-disposition') ?? 'none'} / first bytes ${[...bytes.slice(0, 3)].map((b) => b.toString(16)).join(' ')}`,
+    );
+    /* The BOM is the one that matters for this project: without it Excel on
+       Windows opens the Arabic questions as mojibake and sends them back the
+       same way, so the round trip destroys the data it exists to carry. */
+    check(
+      'the exported file contains the entry',
+      csv.includes('Smoke entry'),
+      `${csv.length} bytes`,
+    );
+
+    const edited = csv.replace(
+      'A placeholder answer written by the smoke walk.',
+      'An answer edited in the spreadsheet.',
+    );
+    const imported = await fetch(`${BASE}/api/knowledge/import.csv`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${staffToken}`, 'content-type': 'text/csv' },
+      body: edited,
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    const report = await imported.json();
+    check(
+      'an edited export imports back through the proxy',
+      report.updated === 1,
+      JSON.stringify(report),
+    );
+
+    /* The import must not be a way past the gate. */
+    const after = await call('GET', `/api/knowledge/${kbId}`, { token: staffToken });
+    check(
+      'an import sends the entry back for review rather than approving it',
+      after.body?.entry?.status === 'pending_review',
+      after.body?.entry?.status ?? 'none',
+    );
+    check(
+      'the previous text is kept as a version',
+      after.body?.versions?.length === 1,
+      `${after.body?.versions?.length ?? 0} versions`,
+    );
+  }
+
   for (const socket of sockets) socket.disconnect();
 
   /* ── Verdict ─────────────────────────────────────────────────────────── */

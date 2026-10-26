@@ -268,6 +268,49 @@ describe('the ticket detail', () => {
     expect(await screen.findByText(/more than 14 days ago/)).toBeDefined();
   });
 
+  /* Step 15 refuses to send an assistant answer that cites nothing, and step
+     17 is where that guarantee becomes something a reader can check. An
+     enforced-but-invisible grounding is worth as much as no grounding. */
+  it('shows what an assistant answer was grounded in, with the version', async () => {
+    routes['/api/customer/tickets/507f1f77bcf86cd799439011/messages'] = {
+      messages: [
+        {
+          id: 'm9',
+          author: 'assistant',
+          body: 'Turn the printer off for one minute.',
+          inputForm: 'english',
+          internal: false,
+          confidence: 0.72,
+          citations: [{ version: 2, title: 'Restarting a printer' }],
+          createdAt: '2026-10-24T09:05:00Z',
+        },
+      ],
+    };
+    mount(<TicketDetail id={ticket.id} onBack={() => undefined} />);
+    await screen.findByText('Turn the printer off for one minute.');
+
+    /* `<bdi>`, not a span: an Arabic title inside an English line is a bidi
+       boundary, and without isolation a title ending in Latin text reorders
+       the version after it. Asserting the element rather than the string is
+       what stops someone "simplifying" it back into one interpolation.
+
+       Found by its text rather than by `querySelector('bdi')` — `Identifier`
+       renders the ticket reference in a `bdi` too, for the same reason, and
+       it comes first in the document. */
+    const isolated = screen.getByText('Restarting a printer');
+    expect(isolated.tagName).toBe('BDI');
+
+    const line = isolated.closest('p');
+    expect(line?.textContent).toContain('Based on:');
+    expect(line?.textContent).toContain('(version 2)');
+  });
+
+  it('shows nothing where there is nothing to cite', async () => {
+    mount(<TicketDetail id={ticket.id} onBack={() => undefined} />);
+    await screen.findByText('el printer 3am ya3mel error');
+    expect(screen.queryByText(/Based on:/)).toBeNull();
+  });
+
   it('has no axe violations, in both languages', async () => {
     for (const locale of ['en-LB', 'ar-LB'] as Locale[]) {
       const { container, unmount } = mount(

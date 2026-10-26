@@ -131,6 +131,10 @@ export const enLB = {
     agent: 'Support agent',
     system: 'System',
     knowledgeBase: 'Knowledge base',
+    basedOn: 'Based on:',
+    /* The version is shown, not hidden: the entry may have been rewritten
+       since, and this names the text that was actually used. */
+    version: '(version {{version}})',
     confidence: 'Confidence',
     composerLabel: 'Your reply',
     composerPlaceholder: 'Write a reply…',

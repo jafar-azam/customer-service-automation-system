@@ -149,6 +149,15 @@ export interface TicketDetail {
   continues: string | null;
 }
 
+/** What an assistant answer was grounded in. A customer gets the title and
+    the version; the entry id is staff-only, since there is nothing a customer
+    could look it up in. */
+export interface Citation {
+  kbEntryId?: string;
+  version: number | null;
+  title: string | null;
+}
+
 export interface Message {
   id: string;
   author: 'customer' | 'assistant' | 'agent' | 'system';
@@ -156,6 +165,7 @@ export interface Message {
   inputForm: string;
   internal: boolean;
   confidence: number | null;
+  citations?: Citation[];
   createdAt: string;
 }
 

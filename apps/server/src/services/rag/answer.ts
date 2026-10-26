@@ -28,6 +28,8 @@ export type EscalationReason =
 export interface Citation {
   readonly kbEntryId: string;
   readonly version: number;
+  /** Frozen at answer time — see the note on `citationSchema`. */
+  readonly title: string;
   readonly score: number;
 }
 
@@ -115,6 +117,7 @@ export async function ask(question: string, options: AskOptions): Promise<Assist
   const considered = entries.map((entry) => ({
     kbEntryId: entry.id,
     version: entry.version,
+    title: entry.title,
     score: entry.score,
   }));
 
@@ -193,7 +196,7 @@ export async function ask(question: string, options: AskOptions): Promise<Assist
       const position = prompt.citableIds.indexOf(label);
       const entry = entries[position];
       return entry
-        ? { kbEntryId: entry.id, version: entry.version, score: entry.score }
+        ? { kbEntryId: entry.id, version: entry.version, title: entry.title, score: entry.score }
         : undefined;
     })
     .filter((citation): citation is Citation => citation !== undefined);
