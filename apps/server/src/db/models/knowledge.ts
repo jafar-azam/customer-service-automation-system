@@ -162,8 +162,27 @@ const kbEntrySchema = new Schema<KbEntryRecord>(
 kbEntrySchema.index({ 'provenance.lineageId': 1 });
 kbEntrySchema.index({ status: 1, topic: 1 });
 kbEntrySchema.index({ status: 1, updatedAt: -1 });
-/* The degraded-mode keyword search (step 18) when the AI provider is down. */
-kbEntrySchema.index({ title: 'text', body: 'text', question: 'text' });
+/* The degraded-mode keyword search (step 18) when the AI provider is down,
+   and the lexical half of retrieval in step 15.
+
+   Both options are load-bearing, and the second one is not optional:
+
+   `language_override` — MongoDB treats a field literally named `language` as
+   the per-document text-search language. This collection has exactly such a
+   field, holding `ar`, which MongoDB Community does not support as a text
+   language. The result was that **an Arabic entry could not be inserted at
+   all**: `language override unsupported: ar`. Pointing the override at a
+   field nothing writes makes the document's own `language` ordinary data
+   again.
+
+   `default_language: 'none'` — no stemming and no stop-word list. The corpus
+   is bilingual and Community ships no Arabic stemmer, so English stemming
+   would be applied to Arabic text, which is worse than none. It also keeps
+   lexical scores comparable across the two languages. */
+kbEntrySchema.index(
+  { title: 'text', body: 'text', question: 'text' },
+  { default_language: 'none', language_override: 'textLanguage' },
+);
 /* The approval queue. Partial, because it only ever lists one status. */
 kbEntrySchema.index({ createdAt: 1 }, { partialFilterExpression: { status: 'pending_review' } });
 /* Re-import must update, not duplicate. */

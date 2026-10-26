@@ -109,6 +109,52 @@ describe('enumerations', () => {
   });
 });
 
+/**
+ * The text index and the `language` field.
+ *
+ * MongoDB treats a field literally named `language` as the per-document
+ * text-search language override, and Community supports no Arabic text
+ * language. This collection has exactly such a field, holding `ar` — so
+ * inserting an Arabic entry failed outright with `language override
+ * unsupported: ar`, and the system could not store Arabic knowledge at all.
+ *
+ * Nothing caught it because every fixture in the suite was English. It
+ * surfaced the first time real Arabic content was imported.
+ */
+describe('bilingual knowledge entries', () => {
+  const entry = (language: 'ar' | 'en', title: string) => ({
+    title,
+    body: 'Body text.',
+    language,
+    provenance: { source: 'agent_authored' as const, license: 'CC-BY-4.0', publishable: true },
+  });
+
+  it('stores an Arabic entry', async () => {
+    await expect(KbEntry.create(entry('ar', 'كيف يمكنني تقديم طلب؟'))).resolves.toBeTruthy();
+  });
+
+  it('stores an English entry alongside it', async () => {
+    await KbEntry.create(entry('ar', 'سؤال بالعربية'));
+    await expect(KbEntry.create(entry('en', 'A question in English'))).resolves.toBeTruthy();
+  });
+
+  /* The index is still a text index — the override fix must not have
+     disabled the lexical half of retrieval. */
+  it('still supports a text search across both', async () => {
+    await KbEntry.create(entry('en', 'Printer stopped after upgrade'));
+    await KbEntry.create(entry('ar', 'الطابعة توقفت بعد التحديث'));
+
+    const english = await KbEntry.find({ $text: { $search: 'Printer' } }).lean();
+    expect(english).toHaveLength(1);
+
+    /* No stemmer is applied (`default_language: 'none'`), so an exact Arabic
+       token matches — which is the most Community can do for Arabic and the
+       reason the vector half carries the weight. */
+    const arabic = await KbEntry.find({ $text: { $search: 'الطابعة' } }).lean();
+    expect(arabic).toHaveLength(1);
+  });
+});
+
 describe('unique indexes', () => {
   it('stop two customers sharing a phone hash', async () => {
     await makeCustomer({ phoneHash: 'shared-hash' });

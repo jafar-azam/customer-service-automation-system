@@ -7,6 +7,7 @@ import { createLogger } from '../observability/logger.js';
 import { resolveFromRepoRoot } from './repo-root.js';
 import { seedAdmin, seedDemoData } from './seed.js';
 import { importTechQa } from './techqa.js';
+import { importLebanonQa } from './lebanon-qa.js';
 import { importSeniordata } from './seniordata.js';
 
 /**
@@ -68,6 +69,15 @@ export async function runSeed(argv: readonly string[] = []): Promise<void> {
         logger,
         ...(adminDoc ? { approvedByStaffId: adminDoc._id } : {}),
         withMetadata: !options.skipMetadata,
+      });
+    }
+
+    /* Local-only, git-ignored, and absent for anyone who is not the author —
+       `importLebanonQa` reports that and returns rather than failing. */
+    if (!options.skipSeniordata) {
+      await importLebanonQa({
+        path: resolveFromRepoRoot('reference/lebanon_qa.csv'),
+        logger,
       });
     }
 
