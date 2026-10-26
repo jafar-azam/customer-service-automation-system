@@ -76,6 +76,8 @@ export interface TicketRecord {
     firstResponseDueAt?: Date;
     resolutionDueAt?: Date;
     firstRespondedAt?: Date;
+    /** When to warn, not when to breach — see `services/sla/policy.ts`. */
+    firstResponseWarnAt?: Date;
     pausedMs: number;
     pausedAt?: Date;
     breachedAt?: Date;
@@ -122,6 +124,11 @@ const ticketSchema = new Schema<TicketRecord>(
       firstResponseDueAt: { type: Date },
       resolutionDueAt: { type: Date },
       firstRespondedAt: { type: Date },
+      /** Stored rather than recomputed: the budget is known when the ticket
+          opens, and a sweep that derives it from `createdAt` every pass has
+          to re-run the whole working-hours calculation for every open
+          ticket, every minute. */
+      firstResponseWarnAt: { type: Date },
       /** Accumulated time the clock was paused waiting for the customer. The
           SLA is a promise about our response, not about theirs. */
       pausedMs: { type: Number, required: true, default: 0, min: 0 },

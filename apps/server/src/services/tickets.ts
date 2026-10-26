@@ -14,6 +14,7 @@ import {
 } from '../repositories/tickets.js';
 import { insertMessage, type MessageDocument } from '../repositories/messages.js';
 import { toObjectId, type Scope } from '../repositories/scope.js';
+import { clockUpdateFor, startClock, toUpdateDocument } from './sla/clock.js';
 import { auditActorFor } from './audit-scope.js';
 
 /**
@@ -186,6 +187,19 @@ export async function createTicket(
     citations: [],
   });
 
+  /* The deadlines are computed after the ticket exists, not inside its
+     creation. If the holiday table lacks the year, the conversation still
+     starts and the missing schedule is visible and fixable — refusing the
+     ticket would be the wrong thing to break. */
+  try {
+    await startClock(ticket._id, toObjectId(entitlement.contractId), ticket.priority, now);
+  } catch (error) {
+    logger.error(
+      { err: error, ticketReference: reference },
+      'could not compute the SLA schedule; the ticket is open without deadlines',
+    );
+  }
+
   /* The reference, not the body: the audit log records that a ticket was
      opened, never what was written in it (PRIVACY.md §5). */
   await recordAudit(logger, {
@@ -244,7 +258,18 @@ export async function transitionTicket(
   if (input.to === 'resolved') set['resolvedAt'] = now;
   if (input.to === 'closed') set['closedAt'] = now;
 
-  const update: Record<string, unknown> = { $set: set, $push: { statusHistory: change } };
+  /* The clock change rides in the same atomic write as the status change.
+     Two writes would leave a window in which the status says "waiting on the
+     customer" and the clock is still running. */
+  const clock = toUpdateDocument(
+    clockUpdateFor(current.status, input.to, current.sla.pausedAt, now),
+  );
+
+  const update: Record<string, unknown> = {
+    ...clock,
+    $set: { ...set, ...(clock['$set'] ?? {}) },
+    $push: { statusHistory: change },
+  };
   if (input.to === 'reopened') {
     update['$inc'] = { reopenedCount: 1 };
     /* A reopened ticket is no longer resolved, and leaving the timestamp

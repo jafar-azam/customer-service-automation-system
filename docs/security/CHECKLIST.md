@@ -21,7 +21,7 @@ L2 · A0x = OWASP Top 10 2021 · API0x = OWASP API Security Top 10 2023 ·
 LLM0x = OWASP Top 10 for LLM Applications 2025.
 
 Counts as of step 08, re-derived from the table by `npm run audit:checklist`
-rather than written by hand: **81 done, 37 planned, 1 accepted**. (The numbered
+rather than written by hand: **83 done, 35 planned, 1 accepted**. (The numbered
 rows count one `accepted`; the five further acceptances have no requirement id
 because they are infrastructure decisions, and are listed at the end.)
 
@@ -105,7 +105,7 @@ because they are infrastructure decisions, and are listed at the end.)
 | 7.4 | Malware scanning | A08 | ClamAV over INSTREAM behind `--profile scan`; the default mock still detects EICAR by hash, so the infected branch is reachable and tested. `pending` and `error` are refused alongside `infected` — a scan that failed to run is not a scan that passed | `services/providers/virus-scan.ts` | infected file never stored, audited; scanner error → stored but undownloadable | **done** |
 | 7.5 | Stored outside the web root with unguessable ids | A01 | A private volume no nginx rule maps to, 0700, owned by the unprivileged user. Server-generated 128-bit keys; the customer's filename is metadata and never a path. Traversal refused even though keys are generated | `services/providers/storage.ts` | `../../etc/passwd` reduced to a basename; key escaping the root throws | **done** |
 | 7.6 | Served only through short-lived signed URLs after an access check | API01 | HMAC token bound to the attachment **and** the subject, 5 minutes. The signature is not the access control: the ownership check runs on every download anyway. `Content-Disposition: attachment`, `nosniff` and a sandbox CSP so nothing is ever rendered inline in this origin | `services/attachments/signed-url.ts` | expired, forged, extended, wrong-subject and wrong-attachment tokens all refused; a valid link with no session → 401 |  **done** |
-| 7.7 | Retention-based deletion | — | `deleteAfter` is written at upload from the retention schedule, so the sweep reads a date rather than recomputing a policy that may have changed. The sweep itself is step 14 | `services/attachments` | every attachment carries a `deleteAfter` 365 days out | step 14 |
+| 7.7 | Retention-based deletion | — | `deleteAfter` written at upload; an hourly sweep deletes the bytes **first** and marks the record afterwards — the other order marks a file deleted that is still on disk and nothing comes back for it | `jobs/sla-sweep.ts` | bytes gone and record marked; safe to run twice; one storage failure does not stop the sweep | **done** |
 | 7.8 | Audio: size, duration and type limits, consent recorded | — | Checked before transcription | `services/voice` | over-length audio rejected; no consent → no capture | step 28 |
 
 ## 8. LLM and AI
@@ -156,7 +156,7 @@ because they are infrastructure decisions, and are listed at the end.)
 | 11.5 | Append-only audit log for security-relevant events | ASVS 7.2 | One verb, `record`; no update or delete path exists | `services/audit.ts` | four audit tests; a write failure never fails the request | **done** |
 | 11.6 | Audit covers logins, recovery, roles, KB, models, exports, deletions, contracts | ASVS 7.2 | Closed action list | `services/audit.ts` | logins, lockouts, reuse, reset, enrolment, admin reset and break-glass covered; KB/model/export events follow their steps | step 17–31 |
 | 11.7 | Phone numbers encrypted at rest with a hashed lookup index | — | AES-256-GCM + peppered HMAC; login never decrypts | `crypto/phone.ts` | 28 tests incl. "stores demo phone numbers encrypted and hashed, never in the clear" | **done** |
-| 11.8 | Retention periods enforced per category | — | Scheduled sweeps | `jobs/retention` | record deleted after its period | step 14 |
+| 11.8 | Retention periods enforced per category | — | Attachments swept hourly against their own `deleteAfter`. Conversations and audit entries have their own periods and are swept in step 27's data-lifecycle work | `jobs/sla-sweep.ts` | attachment deleted after its window, not before | step 27 |
 | 11.9 | Admin-triggered export and deletion of a customer's data | — | Including removal from future training data | `services/privacy` | exported bundle complete; deleted record not exportable | step 29 |
 | 11.10 | Consent for recording and for AI training, with opt-out | — | Separate, unchecked by default, versioned | `services/consent` | no consent → no capture, no export | step 28, 27 |
 
@@ -183,7 +183,7 @@ because they are infrastructure decisions, and are listed at the end.)
 | 13.1 | Rate limits on all routes, strict on sensitive ones | API04 | Redis limiter: strict per-number/IP/prefix layers on OTP, an ordinary per-account layer on the ticket routes. Keyed on the authenticated actor, so one office NAT is not one budget and a changed address does not buy a fresh quota | `services/rate-limit.ts`, `http/rate-limit-middleware.ts` | 16 limiter tests; flood refused with `Retry-After`; limit charged per account not per address | **done** |
 | 13.2 | Bot protection on the contact form | — | Challenge plus honeypot | `routes/contact` | automated submission refused | step 32 |
 | 13.3 | Metric labels bounded | — | Route pattern or `unmatched` | `observability/metrics.ts` | "collapses unmatched paths" | **done** |
-| 13.4 | Jobs idempotent and bounded | — | Idempotency keys, dead-letter queue | `jobs/*` | duplicate job runs once | step 14 |
+| 13.4 | Jobs idempotent and bounded | — | Every write is guarded by the absence of the mark it sets — `breachedAt`, `warningSentAt`, `deletedAt` — **in the query**, not in a prior read. Repeatable jobs use a fixed scheduler id so a restart replaces the entry instead of doubling the frequency. Retries are bounded with exponential backoff and completed/failed lists are capped | `jobs/queues.ts`, `jobs/sla-sweep.ts` | second sweep escalates 0 and audits once; three schedule calls leave one scheduler | **done** |
 | 13.5 | Notifications are idempotent | — | Unique `idempotencyKey` per message | `db/models/governance.ts` | unique index enforced | step 31 |
 
 ## 14. Supply chain

@@ -1,6 +1,8 @@
 import { createServer } from 'node:http';
 import { createApp } from './app.js';
 import { createRealtime } from './realtime/socket.js';
+import { startJobs } from './jobs/index.js';
+import { createStorage } from './services/providers/storage.js';
 import { DeferredTicketEvents } from './realtime/events.js';
 import { EnvValidationError, getEnv } from './config/env.js';
 import {
@@ -67,6 +69,19 @@ function main(): void {
 
   connectToRedis({ url: env.REDIS_URL, logger });
 
+  /* Started after Redis is connecting, and not awaited: the SLA sweep must
+     not hold the server's listen() behind it. A failure here is logged and
+     leaves the API serving — timers stopping is bad, the whole service being
+     down is worse. */
+  let jobs: Awaited<ReturnType<typeof startJobs>> | undefined;
+  void startJobs({ env, logger, storage: createStorage(env.STORAGE_ROOT) })
+    .then((started) => {
+      jobs = started;
+    })
+    .catch((error: unknown) => {
+      logger.error({ err: error }, 'background jobs failed to start');
+    });
+
   /* The connection is started but not awaited: the server must come up and
      answer /api/health even when the database is down, so that readiness can
      report *why* rather than the process simply failing to boot. */
@@ -111,6 +126,9 @@ function main(): void {
        websocket never ends on its own — without this the shutdown always hits
        the forced-exit timer and reports an unclean stop. */
     void io.close();
+    /* Jobs before the HTTP server: an in-flight sweep holding a Mongo cursor
+       would otherwise be killed by the forced-exit timer. */
+    void jobs?.close();
 
     server.close(() => {
       void Promise.all([disconnectFromDatabase(), disconnectFromRedis()])

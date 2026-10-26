@@ -4,6 +4,7 @@ import { ApiError } from '../http/errors.js';
 import { insertMessage, type MessageDocument } from '../repositories/messages.js';
 import { findTicket, updateTicket, type TicketDocument } from '../repositories/tickets.js';
 import { toObjectId, type Scope } from '../repositories/scope.js';
+import { clockUpdateFor, toUpdateDocument } from './sla/clock.js';
 
 /**
  * Posting to a conversation.
@@ -130,6 +131,17 @@ export async function postMessage(
         note: 'automatic: a message was posted',
       },
     };
+  }
+
+  /* A message that moves the ticket also moves the clock — the same single
+     write, for the same reason as a manual transition. */
+  if (nextStatus) {
+    const clock = toUpdateDocument(
+      clockUpdateFor(ticket.status, nextStatus, ticket.sla.pausedAt, now),
+    );
+    Object.assign(set, (clock['$set'] as Record<string, unknown> | undefined) ?? {});
+    if (clock['$unset']) update['$unset'] = { ...(update['$unset'] as object), ...clock['$unset'] };
+    if (clock['$inc']) update['$inc'] = { ...(update['$inc'] as object), ...clock['$inc'] };
   }
 
   if (Object.keys(set).length > 0) update['$set'] = set;
