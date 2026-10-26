@@ -165,7 +165,10 @@ export function History({ onOpen }: { readonly onOpen: (id: string) => void }): 
               <tr>
                 <th scope="col">{t('ticket.reference')}</th>
                 <th scope="col">{t('ticket.subject')}</th>
-                <th scope="col">{t('status.open')}</th>
+                {/* `ticket.status`, not `status.open`: this names the column,
+                    and a status *value* standing in for it headed the column
+                    "Open". */}
+                <th scope="col">{t('ticket.status')}</th>
                 <th scope="col">{t('history.opened')}</th>
                 <th scope="col" />
               </tr>

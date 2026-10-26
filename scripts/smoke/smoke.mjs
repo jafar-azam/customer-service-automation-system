@@ -255,14 +255,31 @@ async function main() {
   const customerToken = verified.body?.accessToken;
   check('the code signs the customer in', Boolean(customerToken));
 
-  /* 3. The bug class. The CSRF cookie is scoped to /api/auth, so a browser
-        never sends it to /api/customer/tickets. A write must still succeed,
-        because these routes authenticate with a bearer header. */
+  /* 3. The bug class, in both directions.
+
+        The CSRF cookie must be readable by the page — scoped to `/api/auth`
+        it was invisible to `document.cookie` at `/`, so refresh answered 401
+        to its own client and no session survived a reload.
+
+        The *refresh* cookie must stay narrow. That one is the credential: it
+        is `httpOnly`, no script ever reads it, and restricting where it
+        travels costs nothing. The CSRF token is not a credential — it is a
+        value the page has to read and echo, and its protection comes from an
+        attacker being unable to read it cross-origin, which the same-origin
+        policy gives at any path.
+
+        And the ticket routes must not *require* the CSRF header at all: they
+        authenticate with a bearer token, and `requireCsrfToken` on them broke
+        every write in the browser once already. */
   const csrfPath = jar.get('csas_csrf')?.path;
-  check('the CSRF cookie is scoped to /api/auth', csrfPath === '/api/auth', csrfPath);
+  /* `/`, not `/api/auth`. The page has to read this one to echo it in a
+     header, and `document.cookie` only exposes cookies matching the current
+     path — scoped to `/api/auth` it was invisible at `/`, so refresh answered
+     401 to its own client and no session survived a reload. */
+  check('the CSRF cookie is readable from the page root', csrfPath === '/', csrfPath);
   check(
-    'the ticket routes receive no CSRF cookie',
-    cookieHeaderFor('/api/customer/tickets') === '',
+    'the ticket routes never receive the refresh cookie',
+    !cookieHeaderFor('/api/customer/tickets').includes('csas_refresh'),
     `would send: "${cookieHeaderFor('/api/customer/tickets')}"`,
   );
 
@@ -276,7 +293,7 @@ async function main() {
   });
   const ticket = created.body?.ticket;
   check(
-    'a ticket can be opened without a CSRF cookie',
+    'a ticket can be opened without a CSRF header',
     created.status === 201,
     `${created.status} ${created.body?.error?.code ?? ''}`,
   );

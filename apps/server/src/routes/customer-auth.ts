@@ -209,8 +209,16 @@ export function customerAuthRouter({
       return;
     }
 
-    rotateSession(presented)
+    /* See the staff refresh route: `expect` stops this endpoint rotating — and
+       so destroying — a live staff session that happens to be in the same
+       browser, which both sign-ins are, because they share one cookie. */
+    rotateSession(presented, { expect: 'customer' })
       .then(async (outcome) => {
+        if (outcome.kind === 'wrong_subject') {
+          /* Left signed in: the cookie belongs to a valid session, just not
+             a customer one. */
+          throw new ApiError(401, 'unauthenticated', 'Authentication is required');
+        }
         if (outcome.kind === 'reuse_detected') {
           clearSessionCookies(res);
           throw new ApiError(401, 'session_revoked', 'This session has been ended');

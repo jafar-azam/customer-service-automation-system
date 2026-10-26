@@ -20,8 +20,8 @@ reports anything that does not hold.
 L2 · A0x = OWASP Top 10 2021 · API0x = OWASP API Security Top 10 2023 ·
 LLM0x = OWASP Top 10 for LLM Applications 2025.
 
-Counts as of step 17, re-derived from the table by `npm run audit:checklist`
-rather than written by hand: **104 done, 31 planned, 1 accepted**. (The numbered
+Counts as of step 17 (plus the staff interface), re-derived from the table by `npm run audit:checklist`
+rather than written by hand: **106 done, 31 planned, 1 accepted**. (The numbered
 rows count one `accepted`; the five further acceptances have no requirement id
 because they are infrastructure decisions, and are listed at the end.)
 
@@ -62,7 +62,9 @@ because they are infrastructure decisions, and are listed at the end.)
 | 3.3 | Rotation on every use | ASVS 3.3 | New token each refresh, in a transaction | `services/auth/tokens.ts` | "rotates to a new token and retires the old one" | **done** |
 | 3.4 | **Reuse detection revokes the whole family** | ASVS 3.3 | Family id; a replay revokes every live token in it | `services/auth/tokens.ts` | "revokes every live token in the family"; verified live | **done** |
 | 3.5 | Server-side revocation on logout and deactivation | ASVS 3.3 | Session family checked on every authenticated request | `http/authenticate.ts` | "stops accepting the access token the moment the session is revoked" | **done** |
-| 3.6 | CSRF protection on cookie-authenticated state changes | ASVS 4.2, A01 | Double-submit token compared in constant time | `http/cookies.ts` | "refuses a refresh with no CSRF header"; "refuses a header that does not match" | **done** |
+| 3.6 | CSRF protection on cookie-authenticated state changes | ASVS 4.2, A01 | Double-submit token compared in constant time. The CSRF cookie is `path: '/'` — it has to be readable by the page that echoes it, and its protection is that another origin cannot *read* it, which the same-origin policy gives at any path. Bearer-authenticated routes do not require it at all | `http/cookies.ts` | "refuses a refresh with no CSRF header"; "refuses a header that does not match"; "is readable by the page that has to echo it"; smoke walk opens a ticket with no CSRF header | **done** |
+| 3.7 | The refresh cookie travels only where it is consumed | ASVS 3.4 | `httpOnly`, `SameSite=Strict`, `Secure`, and `path: '/api/auth'` so it is never attached to the rest of the API. No script reads it, so the narrow path costs nothing | `http/cookies.ts` | "is unreadable by script anywhere"; "is not sent to the rest of the API"; smoke walk asserts the ticket routes never receive it | **done** |
+| 3.8 | A refresh presented to the wrong endpoint does not destroy the session | ASVS 3.3 | Both sign-ins share one cookie, so `rotateSession` takes the expected subject and refuses **before** rotating. Checked after reuse detection, so a replay still trips the alarm whichever endpoint it reaches | `services/auth/tokens.ts` | "refuses the wrong subject without touching the session"; "still detects a replay presented to the wrong endpoint" | **done** |
 
 ## 4. Authorization
 

@@ -174,15 +174,15 @@ export function authRouter({
       return;
     }
 
-    rotateSession(presented)
+    /* `expect` rather than a check on the result: a staff endpoint must not
+       rotate a customer's session, and the only way to not rotate it is to
+       say so before the rotation happens. The cookie is deliberately left
+       alone for a wrong-subject answer — that session is valid, and clearing
+       it would sign somebody out for asking at the wrong door. */
+    rotateSession(presented, { expect: 'staff' })
       .then(async (outcome) => {
-        if (outcome.kind === 'reuse_detected' || outcome.kind === 'rotated') {
-          /* A staff endpoint must not rotate a customer's session, even
-             though the mechanics are shared. */
-          if (outcome.subjectType !== 'staff') {
-            clearSessionCookies(res);
-            throw new ApiError(401, 'unauthenticated', 'Authentication is required');
-          }
+        if (outcome.kind === 'wrong_subject') {
+          throw new ApiError(401, 'unauthenticated', 'Authentication is required');
         }
 
         if (outcome.kind === 'reuse_detected') {

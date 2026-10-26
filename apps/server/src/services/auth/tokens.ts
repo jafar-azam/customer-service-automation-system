@@ -247,6 +247,14 @@ export type RotationOutcome =
   | ({ readonly kind: 'rotated'; readonly session: CreatedSession } & RotatedSubject)
   | { readonly kind: 'unknown' }
   | { readonly kind: 'expired' }
+  /**
+   * A live session, presented to the wrong endpoint.
+   *
+   * Its own outcome because the session is **untouched** and still valid: the
+   * caller answers 401 and must not clear the cookie, since the holder is
+   * legitimately signed in — just not as the kind this endpoint serves.
+   */
+  | { readonly kind: 'wrong_subject'; readonly subjectType: 'staff' | 'customer' }
   | ({ readonly kind: 'reuse_detected'; readonly familyId: string } & RotatedSubject);
 
 /**
@@ -260,7 +268,10 @@ export type RotationOutcome =
  */
 export async function rotateSession(
   presentedToken: string,
-  { ttlSeconds = REFRESH_TOKEN_TTL_SECONDS }: { ttlSeconds?: number } = {},
+  {
+    ttlSeconds = REFRESH_TOKEN_TTL_SECONDS,
+    expect,
+  }: { ttlSeconds?: number; expect?: 'staff' | 'customer' } = {},
 ): Promise<RotationOutcome> {
   const tokenHash = hashRefreshToken(presentedToken);
   const dbSession = await mongoose.startSession();
@@ -295,6 +306,29 @@ export async function rotateSession(
 
       if (existing.expiresAt.getTime() <= Date.now()) {
         outcome = { kind: 'expired' };
+        return;
+      }
+
+      /**
+       * The wrong endpoint for this session — refused **before** rotating.
+       *
+       * Both sign-ins share one `csas_refresh` cookie, so a browser holding a
+       * staff session will present it to the customer refresh endpoint if the
+       * client tries that first. This check used to live in the routes, after
+       * the rotation had already happened: the old token was retired, a new
+       * one was created, the route then noticed the mismatch and threw the new
+       * token away without ever sending it. The session was destroyed by the
+       * act of asking the wrong question about it — and the next legitimate
+       * refresh would present a retired token, which reuse detection correctly
+       * reads as theft and uses to revoke the whole family.
+       *
+       * Checked after reuse detection on purpose: a replayed token is a
+       * replayed token whichever endpoint it arrives at, and letting the wrong
+       * endpoint silently ignore a replay would be a way to probe without
+       * tripping the alarm.
+       */
+      if (expect !== undefined && subjectType !== expect) {
+        outcome = { kind: 'wrong_subject', subjectType };
         return;
       }
 

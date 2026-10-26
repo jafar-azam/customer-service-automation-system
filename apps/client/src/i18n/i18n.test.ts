@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MESSAGE_AUTHORS, TICKET_STATUSES } from '@csas/shared';
+import { MESSAGE_AUTHORS, PRIORITIES, TICKET_STATUSES } from '@csas/shared';
 import { toKey } from '../screens/History.js';
 import { chooseLocale, createI18n, resources } from './index.js';
 
@@ -142,6 +142,21 @@ describe('every value a screen renders has a label', () => {
     const strings = resources[locale].translation as { chat: Record<string, string> };
     const missing = MESSAGE_AUTHORS.filter((author) => strings.chat[author] === undefined);
     expect(missing).toEqual([]);
+  });
+
+  /* Priorities were missed by the first version of this test, and had the
+     same fault: the labels read `low/normal/high/urgent` while the enum is
+     `low/medium/high/urgent`, so every medium-priority ticket rendered the raw
+     word "medium" and the `normal` label was dead. */
+  it.each(locales)('%s names every priority', (locale) => {
+    const strings = resources[locale].translation as { priority: Record<string, string> };
+    expect(PRIORITIES.filter((value) => strings.priority[value] === undefined)).toEqual([]);
+  });
+
+  it.each(locales)('%s has no label for a priority that does not exist', (locale) => {
+    const strings = resources[locale].translation as { priority: Record<string, string> };
+    const known = new Set<string>(PRIORITIES);
+    expect(Object.keys(strings.priority).filter((key) => !known.has(key))).toEqual([]);
   });
 
   /* The other direction: a label for a status that does not exist is a

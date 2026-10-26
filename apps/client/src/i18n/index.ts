@@ -69,10 +69,28 @@ export function applyLocale(locale: Locale, root: HTMLElement): void {
   root.setAttribute('dir', direction(locale));
 }
 
+/**
+ * `saveMissing` turns a missing key into an observable event.
+ *
+ * Nothing is "saved" anywhere — there is no backend for it — but with the flag
+ * on, i18next emits `missingKey`, and `i18n.test.ts` renders every screen with
+ * a listener attached and fails if anything fires. Without it a missing key is
+ * silent: `t()` returns the key, so the screen renders `HISTORY.REFERENCE` as
+ * a column heading and looks like a styling fault rather than a missing
+ * string. Three headings shipped that way on the staff queue.
+ *
+ * Left on in production too, deliberately: the handler is a no-op there, the
+ * cost is a function call on a path that should never run, and turning it on
+ * only for tests would mean the thing being tested is not the thing shipping.
+ */
 export function createI18n(locale: Locale): I18n {
   const instance = i18next.createInstance();
   void instance.use(initReactI18next).init({
     resources,
+    saveMissing: true,
+    missingKeyHandler: () => {
+      /* The event is the signal; nothing to do here. */
+    },
     lng: locale,
     fallbackLng: false,
     supportedLngs: [...LOCALES],

@@ -6,7 +6,11 @@ import { useLocale } from './locale-context.js';
 import { ContractInactive, SignIn } from './screens/SignIn.js';
 import { History } from './screens/History.js';
 import { PreferencesScreen } from './screens/Preferences.js';
+import { Approvals } from './screens/Approvals.js';
 import { NewTicket } from './screens/NewTicket.js';
+import { Queue } from './screens/Queue.js';
+import { StaffSignIn } from './screens/StaffSignIn.js';
+import { StaffTicket } from './screens/StaffTicket.js';
 import { TicketDetail } from './screens/TicketDetail.js';
 import { useSession } from './session.js';
 import { THEMES, useTheme, type Theme } from './theme.js';
@@ -33,10 +37,86 @@ type ApiState =
   | { status: 'ready'; info: VersionInfo }
   | { status: 'error'; code: string };
 
+type StaffView =
+  | { readonly name: 'queue' }
+  | { readonly name: 'ticket'; readonly id: string }
+  | { readonly name: 'approvals' };
+
 type View =
   | { readonly name: 'history' }
   | { readonly name: 'new' }
   | { readonly name: 'detail'; readonly id: string };
+
+/**
+ * The staff side of the product.
+ *
+ * The queue, one ticket, and the knowledge approvals — switched by state for
+ * the same reason the customer side is: a router is a dependency serving a
+ * single `if` until there are URLs worth sharing.
+ *
+ * The approvals tab is drawn for both roles. An agent who opens it sees the
+ * queue and gets a 403 from the server on approve, which is the honest shape:
+ * hiding it would mean the browser deciding who may approve, and that decision
+ * belongs to `requireRole('admin')` on the server where it cannot be edited by
+ * whoever is looking at the page.
+ */
+function StaffArea({
+  name,
+  role,
+  onSignOut,
+}: {
+  readonly name: string;
+  readonly role: string;
+  readonly onSignOut: () => void;
+}): JSX.Element {
+  const { t } = useTranslation();
+  const [view, setView] = useState<StaffView>({ name: 'queue' });
+
+  return (
+    <>
+      <div className={appStyles.settings}>
+        <span className={appStyles.tagline}>{t('staff.signedInAs', { name, role })}</span>
+        <Button onClick={onSignOut}>{t('signIn.signOut')}</Button>
+      </div>
+
+      <nav className={appStyles.settings} aria-label={t('staff.sections')}>
+        <Button
+          aria-pressed={view.name !== 'approvals'}
+          onClick={() => {
+            setView({ name: 'queue' });
+          }}
+        >
+          {t('staff.queueTitle')}
+        </Button>
+        <Button
+          aria-pressed={view.name === 'approvals'}
+          onClick={() => {
+            setView({ name: 'approvals' });
+          }}
+        >
+          {t('approvals.title')}
+        </Button>
+      </nav>
+
+      {view.name === 'approvals' ? (
+        <Approvals />
+      ) : view.name === 'ticket' ? (
+        <StaffTicket
+          id={view.id}
+          onBack={() => {
+            setView({ name: 'queue' });
+          }}
+        />
+      ) : (
+        <Queue
+          onOpen={(id) => {
+            setView({ name: 'ticket', id });
+          }}
+        />
+      )}
+    </>
+  );
+}
 
 function Settings(): JSX.Element {
   const { locale, setLocale } = useLocale();
@@ -172,6 +252,8 @@ function SignedIn({
 export function App(): JSX.Element {
   const { t } = useTranslation();
   const { state, signOut } = useSession();
+  /* Which sign-in is on screen while nobody is authenticated. */
+  const [staffDoor, setStaffDoor] = useState(false);
 
   return (
     <>
@@ -196,7 +278,38 @@ export function App(): JSX.Element {
         {state.status === 'restoring' ? (
           <p role="status">{t('state.loading')}</p>
         ) : state.status === 'anonymous' ? (
-          <SignIn />
+          /* One door with two sides rather than two URLs: there is no router
+             yet (step 32 is where URLs start to matter), and a staff sign-in
+             reachable only by typing a path nobody has written down is a
+             staff sign-in nobody uses. */
+          staffDoor ? (
+            <StaffSignIn
+              onBack={() => {
+                setStaffDoor(false);
+              }}
+            />
+          ) : (
+            <>
+              <SignIn />
+              <p className={appStyles.tagline}>
+                <Button
+                  onClick={() => {
+                    setStaffDoor(true);
+                  }}
+                >
+                  {t('staff.signInLink')}
+                </Button>
+              </p>
+            </>
+          )
+        ) : state.status === 'staff' ? (
+          <StaffArea
+            name={state.staff.name}
+            role={state.staff.role}
+            onSignOut={() => {
+              void signOut();
+            }}
+          />
         ) : state.customer.entitlement.status === 'active' ? (
           <SignedIn
             name={state.customer.name}

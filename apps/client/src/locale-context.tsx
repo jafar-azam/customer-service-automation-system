@@ -37,15 +37,37 @@ const LocaleContext = createContext<LocaleContextValue | undefined>(undefined);
 export function LocaleProvider({
   children,
   initial,
+  onMissingKey,
 }: {
   children: ReactNode;
   initial?: Locale;
+  /**
+   * Called when a screen asks for a string that does not exist.
+   *
+   * Only `missing-keys.test.tsx` passes it. A missing key is otherwise
+   * silent — `t()` returns the key and React renders it, so a column heading
+   * reads `HISTORY.REFERENCE` and looks like a styling fault. Exposing the
+   * event here is what lets a test render every screen and assert that none
+   * of them fires.
+   */
+  onMissingKey?: (key: string) => void;
 }): JSX.Element {
   const [locale, setLocaleState] = useState<Locale>(
     () => initial ?? chooseLocale(readStoredLocale(globalThis.localStorage), navigator.languages),
   );
 
   const [i18n] = useState(() => createI18n(locale));
+
+  useEffect(() => {
+    if (onMissingKey === undefined) return;
+    const listener = (_lngs: readonly string[], _ns: string, key: string) => {
+      onMissingKey(key);
+    };
+    i18n.on('missingKey', listener);
+    return () => {
+      i18n.off('missingKey', listener);
+    };
+  }, [i18n, onMissingKey]);
 
   useEffect(() => {
     applyLocale(locale, document.documentElement);

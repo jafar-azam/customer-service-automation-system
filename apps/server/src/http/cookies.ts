@@ -47,9 +47,27 @@ export function refreshCookieOptions(maxAgeMs: number): CookieOptions {
  * to echo it back in a header. That is the "double submit" pattern, and it is
  * safe because an attacker on another origin can cause the cookie to be *sent*
  * but cannot *read* it to construct the matching header.
+ *
+ * **`path: '/'`, unlike the refresh cookie.** This one was `/api/auth` too,
+ * and that made it unreadable by the page that has to read it: `document.cookie`
+ * only exposes cookies matching the *current* path, so at `/` the value was
+ * invisible, the header could not be built, and `POST /api/auth/refresh`
+ * answered 401 to its own client. No session survived a reload — for anybody,
+ * since step 08 — and the refresh cookie's whole reason for existing never
+ * worked in a browser.
+ *
+ * Narrowing it bought nothing in the first place. A path restriction stops a
+ * cookie being *sent* somewhere; the protection in double-submit comes from an
+ * attacker being unable to *read* it cross-origin, which the same-origin
+ * policy provides at any path. The restriction that does matter is on
+ * `csas_refresh` above, which is `httpOnly` and never read by script at all.
+ *
+ * It took a browser to find: `supertest` ignores cookie paths entirely, and
+ * even a path-aware HTTP client sends this cookie correctly — the rule that
+ * breaks is `document.cookie` visibility, which only a real page applies.
  */
 export function csrfCookieOptions(maxAgeMs: number): CookieOptions {
-  return { httpOnly: false, secure: true, sameSite: 'strict', path: '/api/auth', maxAge: maxAgeMs };
+  return { httpOnly: false, secure: true, sameSite: 'strict', path: '/', maxAge: maxAgeMs };
 }
 
 export function issueCsrfToken(): string {

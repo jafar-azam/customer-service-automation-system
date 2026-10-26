@@ -148,6 +148,55 @@ describe('the refresh token', () => {
     expect(old?.revokedReason).toBe('rotation');
   });
 
+  /**
+   * Both sign-ins share one `csas_refresh` cookie, so a browser holding a
+   * staff session will present it to the customer refresh endpoint if the
+   * client tries that one first.
+   *
+   * Before `expect` existed, that rotated the session: the old token was
+   * retired, a new one created, and the route then noticed the mismatch and
+   * threw the new token away without ever sending it. The session was
+   * destroyed by the act of asking the wrong question about it — and the next
+   * legitimate refresh would present a retired token, which reuse detection
+   * correctly reads as theft and uses to revoke the entire family.
+   *
+   * A staff member simply could not stay signed in.
+   */
+  it('refuses the wrong subject without touching the session', async () => {
+    const staff = await makeStaff();
+    const first = await createSession({ staffId: staff._id });
+
+    const outcome = await rotateSession(first.refreshToken, { expect: 'customer' });
+    expect(outcome.kind).toBe('wrong_subject');
+
+    /* Untouched: not rotated, not revoked, and no second row created. */
+    const stored = await Session.findOne({
+      tokenHash: hashRefreshToken(first.refreshToken),
+    }).lean();
+    expect(stored?.rotatedAt).toBeUndefined();
+    expect(stored?.revokedAt).toBeUndefined();
+    expect(await Session.countDocuments()).toBe(1);
+
+    /* And still usable at the right endpoint afterwards. */
+    const second = await rotateSession(first.refreshToken, { expect: 'staff' });
+    expect(second.kind).toBe('rotated');
+  });
+
+  /* A replayed token is a replayed token whichever endpoint it reaches —
+     letting the wrong one ignore it silently would be a way to probe without
+     tripping the alarm. */
+  it('still detects a replay presented to the wrong endpoint', async () => {
+    const staff = await makeStaff();
+    const first = await createSession({ staffId: staff._id });
+    await rotateSession(first.refreshToken, { expect: 'staff' });
+
+    const replay = await rotateSession(first.refreshToken, { expect: 'customer' });
+    expect(replay.kind).toBe('reuse_detected');
+
+    const live = await Session.countDocuments({ revokedAt: { $exists: false } });
+    expect(live).toBe(0);
+  });
+
   it('reports an unknown token without creating anything', async () => {
     expect((await rotateSession('never-issued')).kind).toBe('unknown');
     expect(await Session.countDocuments()).toBe(0);
