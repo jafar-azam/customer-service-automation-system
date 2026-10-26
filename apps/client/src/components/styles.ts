@@ -28,6 +28,10 @@ export const CLASS_NAMES = [
   'calloutIcon',
   'segmented',
   'segment',
+  'scale',
+  'scaleLegend',
+  'scaleInput',
+  'scaleOption',
   'tableWrap',
   'table',
 ] as const;

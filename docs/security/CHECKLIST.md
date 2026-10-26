@@ -20,8 +20,8 @@ reports anything that does not hold.
 L2 · A0x = OWASP Top 10 2021 · API0x = OWASP API Security Top 10 2023 ·
 LLM0x = OWASP Top 10 for LLM Applications 2025.
 
-Counts as of step 08, re-derived from the table by `npm run audit:checklist`
-rather than written by hand: **87 done, 31 planned, 1 accepted**. (The numbered
+Counts as of step 16, re-derived from the table by `npm run audit:checklist`
+rather than written by hand: **93 done, 31 planned, 1 accepted**. (The numbered
 rows count one `accepted`; the five further acceptances have no requirement id
 because they are infrastructure decisions, and are listed at the end.)
 
@@ -230,6 +230,29 @@ because they are infrastructure decisions, and are listed at the end.)
 | 15.8 | The TOTP secret is stored only after a code proves it | — | Written at confirm, not at start | `services/auth/enrolment.ts` | "does not store the secret until a code proves it was scanned" | **done** |
 | 15.9 | Admin-assisted 2FA reset needs typed confirmation and is audited | ASVS 7.2 | Target email typed; both identities recorded | `services/auth/enrolment.ts` | four tests incl. "refuses an admin resetting their own second factor" | **done** |
 | 15.10 | Break-glass requires server access and is audited | ASVS 7.2 | CLI only; `staff.break_glass_used` | `cli/break-glass.ts` | 5 argument tests; exercised live in step 07 §5 | **done** |
+
+---
+
+## 18. Inbound webhooks
+
+The only route in the system reachable without an account, so the three rows
+below are its whole design.
+
+| # | Requirement | Std | Control | Code | Test | Status |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| 18.1 | Callbacks authenticated by signature over the raw body | ASVS 13.1, API02 | HMAC-SHA256 compared in constant time, length-checked first so a wrong-length forgery is a 401 rather than a 500. The route is mounted **before** `express.json`, because a raw parser behind the JSON parser receives an already-consumed stream — which fails every honest call and invites "fixing" the check against a re-serialised body the sender never signed | `routes/webhooks.ts`, `app.ts` | "verifies the signature against the bytes that were sent"; "rejects a forged signature"; "rejects an unsigned call"; "answers 401, not 500, for a signature of the wrong length"; exercised live through nginx | **done** |
+| 18.2 | Redelivered and out-of-order callbacks change nothing twice | — | The ordering guard is part of the update filter, so a stale or repeated report matches no document. One atomic conditional update, never read-then-write — the first version restored the old value afterwards, which loses a concurrent report | `routes/webhooks.ts` | "applies the same report twice without moving the record twice"; "ignores a report that would move the record backwards"; 4 ordering-table tests; the full lifecycle driven live | **done** |
+| 18.3 | The callback is not an oracle or an amplifier | API01, API04 | 202 for everything accepted, including an id that does not exist — a 404 there confirms which ids are real. Body capped at 64 KB, rate-limited per address, and no status only the system may set (`queued`, `suppressed`) is accepted from a caller | `routes/webhooks.ts` | "answers 202 for an id it has never seen"; "rejects an unrecognised payload"; "never overwrites suppressed" | **done** |
+
+---
+
+## 19. Closing the loop
+
+| # | Requirement | Std | Control | Code | Test | Status |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| 19.1 | Only the customer may confirm a resolution | API01, API05 | Checked in the service, not only at the route, so a later internal caller meets it too. The staff router has no such route at all, so an agent gets a 404 rather than a 403 | `services/resolution.ts`, `routes/tickets.ts` | "refuses an agent confirming their own work"; "cannot confirm another customer's ticket" | **done** |
+| 19.2 | Satisfaction cannot be recorded without being expressed | — | `solved` is required with no default; one rating per ticket, a second submission replaces the first | `routes/tickets.ts`, `services/resolution.ts` | "rejects a body with no answer in it"; "rejects a score outside one to five"; "replaces an earlier rating rather than adding one" | **done** |
+| 19.3 | An escalation notification carries no customer content | — | Reference and link only — it lands on a lock screen (`PRIVACY.md` §5). Assignment and notification happen together: either alone produces a queue nobody watches or a message everybody assumes someone else took | `services/resolution.ts` | "escalates to the on-duty agent…" asserts the reference is present and the subject is not; verified live in MongoDB | **done** |
 
 ---
 

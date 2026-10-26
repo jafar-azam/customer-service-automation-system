@@ -67,6 +67,30 @@ export const arLB = {
     reopenDisabled: 'لا يمكن إعادة فتح الطلبات المغلقة.',
     scanPending: 'قيد الفحص',
     scanFailed: 'غير متاح',
+    confirmTitle: 'هل حُلّت المشكلة؟',
+    confirmPrompt: 'الإفادة تساعد في إغلاق الطلب أو إحالته إلى أحد المختصين.',
+    confirmYes: 'نعم، حُلّت',
+    confirmNo: 'لا، ما زلت بحاجة إلى مساعدة',
+    confirmThanks: 'شكرًا — الطلب الآن محلول.',
+    confirmEscalated: 'أُحيل الطلب إلى أحد المختصين وسيتم التواصل معك.',
+    confirmNotAnswered: 'لا يوجد ما يُؤكَّد بعد — لم تصل إجابة على هذا الطلب.',
+    rateTitle: 'كيف كانت الخدمة؟',
+    rateLegend: 'تقييم من خمسة',
+    /* Nominal phrasing, no imperative: an imperative in Arabic has to guess
+       the reader's gender, which `LOCALIZATION.md` §3 rules out.
+
+       Western digits, not Arabic-Indic. Lebanese institutional Arabic writes
+       `1`, and the rest of the interface already does — a `٣` here would be
+       the only Eastern numeral on the screen, next to a `3` drawn in the
+       scale itself. */
+    rateScore_one: '1، غير مفيدة أبدًا',
+    rateScore_two: '2، غير مفيدة كثيرًا',
+    rateScore_three: '3، مقبولة',
+    rateScore_four: '4، مفيدة',
+    rateScore_five: '5، مفيدة جدًا',
+    rateComment: 'أي ملاحظة إضافية',
+    rateSubmit: 'إرسال التقييم',
+    rateSaved: 'شكرًا على التقييم.',
   },
   preferences: {
     title: 'الإشعارات',
@@ -104,17 +128,22 @@ export const arLB = {
     high: 'أولوية عالية',
     urgent: 'عاجل',
   },
+  /* One key per `TICKET_STATUSES`, checked by a test. */
   status: {
-    new: 'جديد',
     open: 'مفتوح',
+    assistantAnswering: 'المساعد يجيب',
+    awaitingCustomer: 'بانتظار ردّك',
+    escalated: 'لدى مختص',
     inProgress: 'قيد المعالجة',
-    pending: 'قيد الانتظار',
-    resolved: 'تم الحل',
+    resolved: 'محلول',
     closed: 'مغلق',
+    reopened: 'أُعيد فتحه',
   },
   chat: {
     customer: 'العميل',
     assistant: 'المساعد',
+    agent: 'موظف الدعم',
+    system: 'النظام',
     knowledgeBase: 'قاعدة المعرفة',
     confidence: 'الثقة',
     composerLabel: 'نص الرد',

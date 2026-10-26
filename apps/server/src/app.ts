@@ -23,6 +23,7 @@ import { NullTicketEvents, type TicketEvents } from './realtime/events.js';
 import { healthRouter } from './routes/health.js';
 import { metricsRouter } from './routes/metrics.js';
 import { versionRouter } from './routes/version.js';
+import { webhookRouter } from './routes/webhooks.js';
 
 export interface AppOptions {
   readonly env: Env;
@@ -103,6 +104,18 @@ export function createApp({
   /* First, so that everything after it — including a body-parser rejection —
      runs inside a request context and is counted. */
   app.use(observabilityMiddleware({ logger, metrics }));
+
+  /* Mounted **before** `express.json`, and this ordering is the whole reason
+     the signature check works.
+
+     A webhook signature covers the exact bytes the provider sent. `express.json`
+     consumes the request stream and leaves a parsed object behind, so a raw
+     parser mounted after it receives nothing — `req.body` would be an empty
+     buffer, every honest call would fail the check, and the obvious "fix" is to
+     verify against a re-serialised body, which compares a signature to bytes
+     the sender never signed. Express matches middleware in order, so putting
+     the route here is what keeps that door shut. */
+  app.use('/api/webhooks', webhookRouter({ env, logger }));
 
   /* A request-size limit is a denial-of-service control, not a nicety: without
      it a single request can allocate as much memory as it likes. Uploads do not

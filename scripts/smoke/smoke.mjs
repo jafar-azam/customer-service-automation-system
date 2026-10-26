@@ -457,6 +457,102 @@ async function main() {
     `${conversation.body?.messages?.length ?? 0} messages`,
   );
 
+  /* 10. Closing the loop, and the callback that reports on it (step 16).
+
+     Both belong here rather than only in the unit tests. The confirmation
+     changes a ticket's status, writes an escalation and sends a message in one
+     request, so it is the kind of thing that passes in isolation and fails
+     against a real database. The webhook belongs here for a sharper reason:
+     its signature is verified against the **raw** body, which only works
+     because the route is mounted before `express.json` — a seam no unit test
+     touches, and one a later refactor can quietly break. */
+  const confirmed = await call('POST', `/api/customer/tickets/${ticket.id}/confirm`, {
+    token: customerToken,
+    body: { solved: false, score: 2, comment: 'still happening' },
+  });
+  check(
+    'a rejected answer escalates the ticket',
+    confirmed.status === 200 && confirmed.body?.ticket?.status === 'escalated',
+    `${confirmed.status} / ${confirmed.body?.ticket?.status ?? 'none'}`,
+  );
+  check(
+    'the customer is told a person is taking it',
+    typeof confirmed.body?.message?.body === 'string' && confirmed.body.message.body.length > 0,
+  );
+
+  const agentConfirm = await call('POST', `/api/tickets/${ticket.id}/confirm`, {
+    token: staffToken,
+    body: { solved: true },
+  });
+  check(
+    'an agent cannot confirm their own work',
+    agentConfirm.status === 404,
+    `got ${agentConfirm.status}`,
+  );
+
+  /* The signature is computed inside the container, so the secret stays
+     there — the host never needs to read `.env` to run this. */
+  const payload = JSON.stringify({ providerMessageId: 'smoke-delivery', status: 'sent' });
+  const signature = await inServer(
+    'process.stdout.write(require("node:crypto")' +
+      '.createHmac("sha256", process.env.ACCESS_TOKEN_SECRET)' +
+      `.update(${JSON.stringify(payload)}).digest("hex"));`,
+  );
+
+  const unsignedHook = await fetch(`${BASE}/api/webhooks/messaging`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: payload,
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  check(
+    'an unsigned callback is refused',
+    unsignedHook.status === 401,
+    `got ${unsignedHook.status}`,
+  );
+
+  const forgedHook = await fetch(`${BASE}/api/webhooks/messaging`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-csas-signature': 'f'.repeat(64) },
+    body: payload,
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  check('a forged signature is refused', forgedHook.status === 401, `got ${forgedHook.status}`);
+
+  const signedHook = await fetch(`${BASE}/api/webhooks/messaging`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-csas-signature': signature },
+    body: payload,
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  /* The one that proves the body survived nginx and the middleware order. */
+  check(
+    'a correctly signed callback is accepted through the proxy',
+    signedHook.status === 202,
+    `got ${signedHook.status}`,
+  );
+
+  const unknownHook = await fetch(`${BASE}/api/webhooks/messaging`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-csas-signature': await inServer(
+        'process.stdout.write(require("node:crypto")' +
+          '.createHmac("sha256", process.env.ACCESS_TOKEN_SECRET)' +
+          `.update(${JSON.stringify(JSON.stringify({ providerMessageId: 'smoke-nobody', status: 'read' }))}).digest("hex"));`,
+      ),
+    },
+    body: JSON.stringify({ providerMessageId: 'smoke-nobody', status: 'read' }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  /* 202, not 404: a callback that distinguishes a real id from an invented
+     one tells a caller which ids exist. */
+  check(
+    'an unknown message id is not confirmed as unknown',
+    unknownHook.status === 202,
+    `got ${unknownHook.status}`,
+  );
+
   for (const socket of sockets) socket.disconnect();
 
   /* ── Verdict ─────────────────────────────────────────────────────────── */

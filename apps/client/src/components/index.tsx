@@ -244,3 +244,67 @@ export function SegmentedControl<T extends string>({
     </div>
   );
 }
+
+/**
+ * A one-to-five rating.
+ *
+ * Native radios in a `fieldset`, not a row of toggle buttons. The semantics
+ * are the reason: `SegmentedControl` above uses `aria-pressed`, which says
+ * "this button is on" — a screen reader reading five of those announces five
+ * independent toggles. A radio group announces "3 of 5", arrow keys move
+ * between the options, and the browser enforces that only one is chosen. None
+ * of that has to be written here, which is the point.
+ *
+ * The numbers are labelled rather than drawn as stars: a star is an image of a
+ * quantity, and this project does not use emoji as icons. Each option also
+ * carries a text label for the extremes, so "1" is not left to mean whatever
+ * the reader assumes.
+ */
+export function RatingScale({
+  legend,
+  name,
+  value,
+  onChange,
+  labelFor,
+}: {
+  readonly legend: string;
+  readonly name: string;
+  readonly value: number | undefined;
+  readonly onChange: (value: number) => void;
+  /** The accessible name for each score — "1, not helpful at all". */
+  readonly labelFor: (score: number) => string;
+}): JSX.Element {
+  return (
+    <fieldset className={styles.scale}>
+      <legend className={styles.scaleLegend}>{legend}</legend>
+      {[1, 2, 3, 4, 5].map((score) => {
+        const id = `${name}-${String(score)}`;
+        return (
+          <span key={score}>
+            {/* The full sentence as the input's `aria-label`, which outranks the
+                `<label>` element in the accessible-name calculation. The first
+                version kept a visually-hidden copy of the sentence *inside*
+                the label next to an `aria-hidden` number, and the two were
+                concatenated into "2, 2 not very helpful" — `aria-hidden` is
+                not reliably excluded from a name built from label contents. */}
+            <input
+              className={styles.scaleInput}
+              type="radio"
+              id={id}
+              name={name}
+              value={score}
+              aria-label={labelFor(score)}
+              checked={value === score}
+              onChange={() => {
+                onChange(score);
+              }}
+            />
+            <label className={styles.scaleOption} htmlFor={id}>
+              {score}
+            </label>
+          </span>
+        );
+      })}
+    </fieldset>
+  );
+}

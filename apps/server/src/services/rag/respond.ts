@@ -1,3 +1,4 @@
+import { arabicFromText } from '../reply-language.js';
 import { KbEntry } from '../../db/models/index.js';
 import { insertMessage, type MessageDocument } from '../../repositories/messages.js';
 import { systemScope, toObjectId } from '../../repositories/scope.js';
@@ -36,14 +37,12 @@ const HANDOVER = {
 /**
  * Guesses the reply language from the question.
  *
- * Script, not language: a question in Arabic script gets an Arabic handover.
- * Arabizi gets the English text, which is the lesser of two wrongs — a
- * Lebanese Arabizi handover written by me would be a guess at register that
- * the Phase 6 reviewers have not seen, and it is a fixed string a customer
- * reads at a bad moment.
+ * Script, not language, and the rule itself now lives in
+ * `services/reply-language.ts` — it was duplicated here and in step 16's
+ * resolution messages, and the two copies disagreed on a real ticket.
  */
 export function handoverFor(question: string): string {
-  return /[؀-ۿ]/.test(question) ? HANDOVER.ar : HANDOVER.en;
+  return arabicFromText(question) ? HANDOVER.ar : HANDOVER.en;
 }
 
 export async function respond(

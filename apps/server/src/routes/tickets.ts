@@ -25,6 +25,8 @@ import {
   reopenClosedTicket,
   transitionTicket,
 } from '../services/tickets.js';
+import { canConfirm, confirmResolution, rateTicket } from '../services/resolution.js';
+import { MockMessagingProvider, type MessagingProvider } from '../services/providers/messaging.js';
 import { renderTranscript, transcriptFilename } from '../services/transcript.js';
 import type { TicketEvents } from '../realtime/events.js';
 
@@ -65,6 +67,28 @@ const assignSchema = z.strictObject({
 
 const idSchema = z.object({ id: z.string().regex(/^[0-9a-f]{24}$/i) });
 
+/**
+ * "Did that solve it?"
+ *
+ * `solved` is required and has no default. A default would mean a malformed
+ * client silently records satisfaction nobody expressed, and this is the one
+ * number in the system that must not be inferred.
+ *
+ * The score is optional, because the two questions are asked together in the
+ * interface but a customer may answer only the first.
+ */
+const confirmSchema = z.strictObject({
+  solved: z.boolean(),
+  score: z.number().int().min(1).max(5).optional(),
+  /* Free-form customer text: bounded, stored, and never logged. */
+  comment: z.string().trim().max(2000).optional(),
+});
+
+const ratingSchema = z.strictObject({
+  score: z.number().int().min(1).max(5),
+  comment: z.string().trim().max(2000).optional(),
+});
+
 /* `coerce` on the query, because every query value arrives as a string.
    `strictObject` so an unknown filter is a 400 rather than silently ignored —
    a client asking for `?customerId=…` should be told it is not a filter, not
@@ -104,6 +128,9 @@ export interface TicketRouterOptions {
   readonly logger: Logger;
   readonly events: TicketEvents;
   readonly audience: 'customer' | 'staff';
+  /* Injected so a test can assert on what would have been sent, and so the
+     mock stays the default exactly as it is for the OTP sender. */
+  readonly messaging?: MessagingProvider;
 }
 
 /**
@@ -131,7 +158,10 @@ function scopeFor(req: Request, audience: 'customer' | 'staff'): Scope {
   return staffScope(req.actor.staffId, req.actor.role);
 }
 
-export function ticketRouter({ env, logger, events, audience }: TicketRouterOptions): Router {
+export function ticketRouter(options: TicketRouterOptions): Router {
+  const { env, logger, events, audience } = options;
+  const messaging =
+    options.messaging ?? new MockMessagingProvider(logger, { revealCodes: env.DEMO_MODE });
   const router = Router();
 
   router.use(audience === 'customer' ? requireCustomer({ env }) : requireStaff({ env }));
@@ -190,6 +220,12 @@ export function ticketRouter({ env, logger, events, audience }: TicketRouterOpti
           /* Same function the reopen route uses, so the button the client
              draws and the request the server accepts cannot disagree. */
           reopen: canReopen(ticket, env.TICKET_REOPEN_WINDOW_DAYS),
+          /* Same function `POST /:id/confirm` gates on, for the same reason as
+             `reopen` above: the prompt the client draws and the request the
+             server accepts cannot disagree. Customers only — an agent has no
+             confirm button, and sending them eligibility for one would invite
+             a client to draw it. */
+          ...(audience === 'customer' ? { confirm: canConfirm(ticket) } : {}),
           continues: ticket.reopenedFromId ? String(ticket.reopenedFromId) : null,
         });
       })
@@ -314,6 +350,61 @@ export function ticketRouter({ env, logger, events, audience }: TicketRouterOpti
           .then(({ ticket, message }) => {
             events.ticketCreated(ticket, message);
             res.status(201).json({ ticket: present(ticket), message: presentMessage(message) });
+          })
+          .catch(next);
+      },
+    );
+  }
+
+  if (audience === 'customer') {
+    /**
+     * Records the answer to "did that solve it?".
+     *
+     * Customer-only, enforced again in the service. An agent who could confirm
+     * their own work would make every satisfaction figure meaningless, and a
+     * busy queue invites exactly that shortcut — so the check lives in the
+     * service too, where a future internal caller also meets it.
+     *
+     * Rate-limited as a transition rather than a read: it closes or escalates a
+     * ticket, and the escalation path sends a message to a person.
+     */
+    router.post(
+      '/:id/confirm',
+      rateLimit(TICKET_LIMITS.transition),
+      validate({ params: idSchema, body: confirmSchema }),
+      (req, res, next) => {
+        const scope = scopeFor(req, audience);
+        const body = req.body as z.infer<typeof confirmSchema>;
+        confirmResolution(scope, ticketId(req), body, { logger, messaging })
+          .then(({ ticket, message, escalated }) => {
+            events.ticketUpdated(ticket);
+            events.messagePosted(ticket, message);
+            res.json({ ticket: present(ticket), message: presentMessage(message), escalated });
+          })
+          .catch(next);
+      },
+    );
+
+    /**
+     * The rating on its own.
+     *
+     * Separate from `confirm` because a customer may rate a ticket an agent
+     * closed, days later, from the ticket list — there is no resolution to
+     * confirm at that point, only an opinion to record.
+     */
+    router.post(
+      '/:id/rating',
+      rateLimit(TICKET_LIMITS.transition),
+      validate({ params: idSchema, body: ratingSchema }),
+      (req, res, next) => {
+        const scope = scopeFor(req, audience);
+        const body = req.body as z.infer<typeof ratingSchema>;
+        rateTicket(scope, ticketId(req), body.score, body.comment, logger)
+          .then(() => {
+            /* 204: the rating is not a resource the client reads back, and
+               echoing it invites a client to treat its own submission as the
+               stored state. */
+            res.status(204).end();
           })
           .catch(next);
       },

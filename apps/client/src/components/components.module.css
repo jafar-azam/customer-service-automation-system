@@ -229,6 +229,70 @@
   font-weight: var(--weight-strong);
 }
 
+/* ── Rating scale ────────────────────────────────────────────────────────── */
+
+.scale {
+  display: flex;
+  gap: var(--space-1);
+  border: 0;
+  padding: 0;
+  margin: 0;
+  flex-wrap: wrap;
+}
+
+.scaleLegend {
+  padding: 0;
+  margin-block-end: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-strong);
+}
+
+/* The input stays in the accessibility tree and keeps its keyboard behaviour
+   — arrow keys move between the options and the group announces "3 of 5".
+   `display: none` would remove the control from the tree entirely, and
+   `appearance: none` would keep the box but lose the native focus ring on some
+   engines, which is why it is moved rather than hidden.
+
+   No `pointer-events: none`: the label is the visible target and forwards its
+   clicks here, but suppressing them on the control itself also suppresses a
+   direct click, which is what a test driver and some assistive software do. */
+.scaleInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.scaleOption {
+  display: grid;
+  place-items: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
+}
+
+/* The ring is drawn on the label because the input it belongs to is the
+   off-screen one; without this, keyboard focus would be invisible. */
+.scaleInput:focus-visible + .scaleOption {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.scaleInput:checked + .scaleOption {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: var(--weight-strong);
+}
+
 /* ── Table ───────────────────────────────────────────────────────────────── */
 
 .tableWrap {

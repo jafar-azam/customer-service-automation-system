@@ -133,11 +133,19 @@ export interface ReopenEligibility {
   windowDays?: number;
 }
 
+export interface ConfirmEligibility {
+  ok: boolean;
+  reason?: 'not_answered' | 'already_confirmed';
+  status?: string;
+}
+
 export interface TicketDetail {
   ticket: TicketSummary;
   allowedTransitions: string[];
   timeline: TimelineEntry[];
   reopen: ReopenEligibility;
+  /* Absent on the staff view, which has no confirm prompt. */
+  confirm?: ConfirmEligibility;
   continues: string | null;
 }
 
@@ -225,6 +233,29 @@ export const reopenTicket = (id: string, body: string) =>
   api<{ ticket: TicketSummary }>(`/api/customer/tickets/${id}/reopen`, {
     method: 'POST',
     body: { body },
+  });
+
+/**
+ * "Did that solve it?"
+ *
+ * `solved` is sent explicitly rather than inferred from whether a score was
+ * given — a four-star rating on an unsolved problem is a real answer, and the
+ * server rejects a body without it.
+ */
+export const confirmResolution = (
+  id: string,
+  input: { solved: boolean; score?: number; comment?: string },
+) =>
+  api<{ ticket: TicketSummary; message: Message; escalated: boolean }>(
+    `/api/customer/tickets/${id}/confirm`,
+    { method: 'POST', body: input },
+  );
+
+/** A rating on its own, for a ticket closed days ago. */
+export const rateTicket = (id: string, score: number, comment?: string) =>
+  api<null>(`/api/customer/tickets/${id}/rating`, {
+    method: 'POST',
+    body: comment === undefined ? { score } : { score, comment },
   });
 
 /** The transcript is a file, so it is a link rather than a fetch. */

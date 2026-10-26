@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { MESSAGE_AUTHORS, TICKET_STATUSES } from '@csas/shared';
+import { toKey } from '../screens/History.js';
 import { chooseLocale, createI18n, resources } from './index.js';
 
 describe('choosing the opening language', () => {
@@ -111,5 +113,43 @@ describe('MSG-03 — the catalogues agree', () => {
         expect(anyArabicUsesCount, `${key} never interpolates count in Arabic`).toBe(true);
       }
     }
+  });
+});
+
+/**
+ * Every enum value a screen renders must have a label.
+ *
+ * Found by looking at the running app, not by a test: the ticket page showed
+ * `awaiting_customer` in raw English snake_case inside an Arabic page, because
+ * `t()` was called with a `defaultValue` of the enum value itself. A fallback
+ * that renders the key is indistinguishable from a translation until someone
+ * reads the screen — which is precisely what a missing-key test is for.
+ *
+ * `defaultValue` is still the right call at the call site: a status added
+ * tomorrow should render *something*. This test is what stops that something
+ * from shipping.
+ */
+describe('every value a screen renders has a label', () => {
+  const locales = Object.keys(resources) as (keyof typeof resources)[];
+
+  it.each(locales)('%s names every ticket status', (locale) => {
+    const strings = resources[locale].translation as { status: Record<string, string> };
+    const missing = TICKET_STATUSES.filter((status) => strings.status[toKey(status)] === undefined);
+    expect(missing).toEqual([]);
+  });
+
+  it.each(locales)('%s names every message author', (locale) => {
+    const strings = resources[locale].translation as { chat: Record<string, string> };
+    const missing = MESSAGE_AUTHORS.filter((author) => strings.chat[author] === undefined);
+    expect(missing).toEqual([]);
+  });
+
+  /* The other direction: a label for a status that does not exist is a
+     leftover, and the two that were here (`new`, `pending`) had never been
+     statuses of this system. */
+  it.each(locales)('%s has no label for a status that does not exist', (locale) => {
+    const strings = resources[locale].translation as { status: Record<string, string> };
+    const known = new Set(TICKET_STATUSES.map(toKey));
+    expect(Object.keys(strings.status).filter((key) => !known.has(key))).toEqual([]);
   });
 });

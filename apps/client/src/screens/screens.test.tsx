@@ -47,6 +47,23 @@ function stubApi() {
   );
 }
 
+/**
+ * The JSON body the client sent to a path ending in `suffix`.
+ *
+ * A helper rather than the same assertion inlined twice: `fetch`'s first
+ * argument is `RequestInfo`, so stringifying it to compare paths is exactly the
+ * sort of accidental `[object Object]` the linter's `no-base-to-string` rule
+ * exists to catch. Narrowing once here keeps the tests readable and the rule on.
+ */
+function sentBody(suffix: string): unknown {
+  const call = vi
+    .mocked(globalThis.fetch)
+    .mock.calls.find(([url]) => typeof url === 'string' && url.endsWith(suffix));
+  const body = call?.[1]?.body;
+  if (typeof body !== 'string') throw new Error(`no JSON body was sent to …${suffix}`);
+  return JSON.parse(body);
+}
+
 function mount(ui: React.ReactElement, locale: Locale = 'en-LB') {
   return render(
     <ThemeProvider initial="light">
@@ -96,6 +113,22 @@ beforeEach(() => {
       },
     ],
   };
+  /* Registered before the detail route on purpose: `stubApi` matches by
+     prefix in insertion order, and the detail URL is a prefix of these two. */
+  routes['/api/customer/tickets/507f1f77bcf86cd799439011/confirm'] = {
+    ticket: { ...ticket, status: 'resolved' },
+    message: {
+      id: 'm2',
+      author: 'system',
+      body: 'Glad that solved it. Thank you for your time.',
+      inputForm: 'arabizi',
+      internal: false,
+      confidence: null,
+      createdAt: '2026-10-24T11:00:00Z',
+    },
+    escalated: false,
+  };
+  routes['/api/customer/tickets/507f1f77bcf86cd799439011/rating'] = {};
   routes['/api/customer/tickets/507f1f77bcf86cd799439011'] = {
     ticket,
     allowedTransitions: [],
@@ -104,6 +137,9 @@ beforeEach(() => {
       { status: 'closed', at: '2026-10-24T10:00:00Z', by: 'staff', note: null },
     ],
     reopen: { ok: true },
+    /* This fixture's ticket is closed, so there is nothing to confirm — the
+       standalone rating form is what a closed ticket offers. */
+    confirm: { ok: false, reason: 'not_answered', status: 'closed' },
     continues: null,
   };
   routes['/api/customer/preferences'] = {
@@ -239,6 +275,114 @@ describe('the ticket detail', () => {
         locale,
       );
       await screen.findByText('el printer 3am ya3mel error');
+      await expectNoViolations(container);
+      unmount();
+    }
+  });
+
+  /* ── Closing the loop (step 16) ──────────────────────────────────────── */
+
+  function answered() {
+    routes['/api/customer/tickets/507f1f77bcf86cd799439011'] = {
+      ...(routes['/api/customer/tickets/507f1f77bcf86cd799439011'] as object),
+      ticket: { ...ticket, status: 'awaiting_customer' },
+      confirm: { ok: true },
+    };
+  }
+
+  it('asks whether it was solved once the server says there is an answer', async () => {
+    answered();
+    mount(<TicketDetail id={ticket.id} onBack={() => undefined} />);
+    expect(await screen.findByRole('heading', { name: 'Did that solve it?' })).toBeDefined();
+  });
+
+  it('does not ask on a ticket nobody has answered', async () => {
+    mount(<TicketDetail id={ticket.id} onBack={() => undefined} />);
+    await screen.findByText('el printer 3am ya3mel error');
+    expect(screen.queryByRole('heading', { name: 'Did that solve it?' })).toBeNull();
+  });
+
+  /* The whole point of the step. "No" must not be the quiet option — a
+     product that makes it harder to say than "yes" collects satisfaction
+     scores that mean nothing. */
+  it('gives \u201cno\u201d a button of its own, not a hidden link', async () => {
+    answered();
+    mount(<TicketDetail id={ticket.id} onBack={() => undefined} />);
+    expect(await screen.findByRole('button', { name: 'No, I still need help' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Yes, it is solved' })).toBeDefined();
+  });
+
+  /* A radio group, not five toggle buttons: the group announces "3 of 5" and
+     arrow keys move between the options. `SegmentedControl` uses
+     `aria-pressed`, which would announce five independent switches. */
+  it('offers the score as a radio group', async () => {
+    answered();
+    mount(<TicketDetail id={ticket.id} onBack={() => undefined} />);
+    const radios = await screen.findAllByRole('radio');
+    expect(radios).toHaveLength(5);
+    expect(screen.getByRole('radio', { name: '1, not helpful at all' })).toBeDefined();
+    expect(screen.getByRole('radio', { name: '5, very helpful' })).toBeDefined();
+  });
+
+  it('sends the answer and the score together', async () => {
+    answered();
+    mount(<TicketDetail id={ticket.id} onBack={() => undefined} />);
+    await userEvent.click(await screen.findByRole('radio', { name: '4, helpful' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Yes, it is solved' }));
+
+    expect(sentBody('/confirm')).toEqual({ solved: true, score: 4 });
+  });
+
+  /* What the server said happened, not what the client guessed: a rejected
+     answer may or may not find an agent, and the line the customer reads has
+     to match. */
+  it('reports the escalation the server actually performed', async () => {
+    answered();
+    routes['/api/customer/tickets/507f1f77bcf86cd799439011/confirm'] = {
+      ...(routes['/api/customer/tickets/507f1f77bcf86cd799439011/confirm'] as object),
+      escalated: true,
+    };
+    mount(<TicketDetail id={ticket.id} onBack={() => undefined} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'No, I still need help' }));
+    expect(await screen.findByText(/Passed to a specialist/)).toBeDefined();
+  });
+
+  /* Announced, not only drawn: the card the customer was reading has just
+     been replaced by this. */
+  it('announces the result to a screen reader', async () => {
+    answered();
+    mount(<TicketDetail id={ticket.id} onBack={() => undefined} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Yes, it is solved' }));
+    const status = await screen.findByRole('status');
+    expect(status.textContent).toContain('now resolved');
+  });
+
+  /* Someone may want to say how it went days after an agent closed it. */
+  it('offers a rating on its own for a ticket with nothing to confirm', async () => {
+    mount(<TicketDetail id={ticket.id} onBack={() => undefined} />);
+    expect(await screen.findByRole('heading', { name: 'How was the support?' })).toBeDefined();
+    /* Disabled until a score is chosen — submitting nothing is not an
+       opinion. */
+    expect(screen.getByRole('button', { name: 'Send rating' })).toHaveProperty('disabled', true);
+  });
+
+  it('sends a standalone rating', async () => {
+    mount(<TicketDetail id={ticket.id} onBack={() => undefined} />);
+    await userEvent.click(await screen.findByRole('radio', { name: '2, not very helpful' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Send rating' }));
+
+    expect(sentBody('/rating')).toEqual({ score: 2 });
+    expect(await screen.findByText(/Thank you for the rating/)).toBeDefined();
+  });
+
+  it('has no axe violations with the confirmation prompt up, in both languages', async () => {
+    answered();
+    for (const locale of ['en-LB', 'ar-LB'] as Locale[]) {
+      const { container, unmount } = mount(
+        <TicketDetail id={ticket.id} onBack={() => undefined} />,
+        locale,
+      );
+      await screen.findAllByRole('radio');
       await expectNoViolations(container);
       unmount();
     }

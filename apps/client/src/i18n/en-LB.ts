@@ -61,6 +61,25 @@ export const enLB = {
     reopenDisabled: 'Closed tickets cannot be reopened.',
     scanPending: 'Being checked',
     scanFailed: 'Unavailable',
+    confirmTitle: 'Did that solve it?',
+    confirmPrompt: 'Let us know, so we can either close this or get a person onto it.',
+    confirmYes: 'Yes, it is solved',
+    confirmNo: 'No, I still need help',
+    confirmThanks: 'Thank you — this ticket is now resolved.',
+    confirmEscalated: 'Passed to a specialist. Someone will reply to you.',
+    confirmNotAnswered: 'Nothing to confirm yet — we have not answered this one.',
+    rateTitle: 'How was the support?',
+    rateLegend: 'A score out of five',
+    /* Named, not left as a bare number: "1" means whatever the reader
+       assumes, and the two ends are the scores people actually use. */
+    rateScore_one: '1, not helpful at all',
+    rateScore_two: '2, not very helpful',
+    rateScore_three: '3, neither good nor bad',
+    rateScore_four: '4, helpful',
+    rateScore_five: '5, very helpful',
+    rateComment: 'Anything you want to add',
+    rateSubmit: 'Send rating',
+    rateSaved: 'Thank you for the rating.',
   },
   preferences: {
     title: 'Notifications',
@@ -89,17 +108,28 @@ export const enLB = {
     high: 'High',
     urgent: 'Urgent',
   },
+  /* One key per `TICKET_STATUSES`, checked by a test. Four of these were
+     missing and the screen fell back to the raw enum, so an Arabic page showed
+     `awaiting_customer` in English snake_case. `new` and `pending` were here
+     and are not statuses this system has. */
   status: {
-    new: 'New',
     open: 'Open',
-    inProgress: 'In progress',
-    pending: 'Pending',
+    assistantAnswering: 'Assistant replying',
+    awaitingCustomer: 'Waiting for you',
+    escalated: 'With a specialist',
+    inProgress: 'Being worked on',
     resolved: 'Resolved',
     closed: 'Closed',
+    reopened: 'Reopened',
   },
   chat: {
     customer: 'Customer',
     assistant: 'Assistant',
+    /* A human, and said so. Labelling an agent's reply "Assistant" tells the
+       customer a machine wrote it — the one distinction this product exists to
+       keep honest. */
+    agent: 'Support agent',
+    system: 'System',
     knowledgeBase: 'Knowledge base',
     confidence: 'Confidence',
     composerLabel: 'Your reply',
