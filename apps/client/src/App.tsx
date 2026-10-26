@@ -6,6 +6,7 @@ import { useLocale } from './locale-context.js';
 import { ContractInactive, SignIn } from './screens/SignIn.js';
 import { History } from './screens/History.js';
 import { PreferencesScreen } from './screens/Preferences.js';
+import { NewTicket } from './screens/NewTicket.js';
 import { TicketDetail } from './screens/TicketDetail.js';
 import { useSession } from './session.js';
 import { THEMES, useTheme, type Theme } from './theme.js';
@@ -32,7 +33,10 @@ type ApiState =
   | { status: 'ready'; info: VersionInfo }
   | { status: 'error'; code: string };
 
-type View = { readonly name: 'history' } | { readonly name: 'detail'; readonly id: string };
+type View =
+  | { readonly name: 'history' }
+  | { readonly name: 'new' }
+  | { readonly name: 'detail'; readonly id: string };
 
 function Settings(): JSX.Element {
   const { locale, setLocale } = useLocale();
@@ -129,8 +133,30 @@ function SignedIn({
             setView({ name: 'history' });
           }}
         />
+      ) : view.name === 'new' ? (
+        <NewTicket
+          onOpened={(id) => {
+            setView({ name: 'detail', id });
+          }}
+          onCancel={() => {
+            setView({ name: 'history' });
+          }}
+        />
       ) : (
         <>
+          {/* The way in. Until this existed a customer could read tickets and
+              never open one, so the assistant — the thing the project is
+              about — had no entry point at all. */}
+          <div className={appStyles.settings}>
+            <Button
+              variant="primary"
+              onClick={() => {
+                setView({ name: 'new' });
+              }}
+            >
+              {t('newTicket.start')}
+            </Button>
+          </div>
           <History
             onOpen={(id) => {
               setView({ name: 'detail', id });

@@ -1,12 +1,19 @@
-import { formatDateTime, formatNumber, type FormatPreferences } from '@csas/shared';
+import {
+  detectInputForm,
+  formatDateTime,
+  formatNumber,
+  type FormatPreferences,
+} from '@csas/shared';
 import { useEffect, useState, type JSX } from 'react';
 import { useTranslation } from 'react-i18next';
 import { describeError, isUnauthenticated } from '../api/errors.js';
 import {
+  askAssistant,
   confirmResolution,
   getAttachments,
   getMessages,
   getTicket,
+  postMessage,
   rateTicket,
   reopenTicket,
   transcriptUrl,
@@ -14,7 +21,16 @@ import {
   type Message,
   type TicketDetail as Detail,
 } from '../api/client.js';
-import { Button, Callout, Card, Field, Identifier, RatingScale, Tag } from '../components/index.js';
+import {
+  Button,
+  Callout,
+  Card,
+  Field,
+  Identifier,
+  RatingScale,
+  Tag,
+  TextArea,
+} from '../components/index.js';
 import { AlertIcon, CheckIcon, ClockIcon } from '../components/icons.js';
 import { styles } from '../components/styles.js';
 import { useLocale } from '../locale-context.js';
@@ -60,6 +76,8 @@ export function TicketDetail({
      answer may or may not find an agent to escalate to, and the message the
      customer reads has to match. */
   const [outcome, setOutcome] = useState<'resolved' | 'escalated' | 'rated' | undefined>();
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState<'none' | 'message' | 'assistant'>('none');
 
   useEffect(() => {
     const controller = new AbortController();
@@ -139,6 +157,35 @@ export function TicketDetail({
         if (fresh.ok) setMessages(fresh.data.messages);
       });
     });
+  }
+
+  /* Both actions re-read the conversation rather than appending the response
+     locally: asking can change the ticket's status and its confirm
+     eligibility at the same time, and rebuilding two of those in the browser
+     is how a screen starts disagreeing with the database. */
+  async function reload(): Promise<void> {
+    const [fresh, conversation] = await Promise.all([getTicket(id), getMessages(id)]);
+    if (fresh.ok) setDetail(fresh.data);
+    if (conversation.ok) setMessages(conversation.data.messages);
+  }
+
+  async function send(to: 'person' | 'assistant'): Promise<void> {
+    const text = draft.trim();
+    if (text === '') return;
+
+    setSending(to === 'assistant' ? 'assistant' : 'message');
+    const result =
+      to === 'assistant'
+        ? await askAssistant(id, text)
+        : await postMessage(id, text, detectInputForm(text));
+    setSending('none');
+
+    if (!result.ok) {
+      fail(result.error);
+      return;
+    }
+    setDraft('');
+    await reload();
   }
 
   return (
@@ -228,6 +275,65 @@ export function TicketDetail({
           ))}
         </div>
       </Card>
+
+      {/* The way back into the conversation — and the only route to the
+          assistant from this screen. A ticket a customer can read but not
+          reply to is a receipt, not a support thread.
+
+          Hidden on a closed ticket, where the reopen form below is the
+          correct path: `closed` is terminal in the state machine on purpose
+          (step 11), so a message posted there would be refused by the server
+          and the button would be a lie. */}
+      {ticket.status === 'closed' ? null : (
+        <Card title={t('chat.continue')} headingLevel="h2">
+          <form
+            className={screens.stack}
+            onSubmit={(event) => {
+              event.preventDefault();
+              void send('assistant');
+            }}
+          >
+            <TextArea
+              label={t('chat.composerLabel')}
+              placeholder={t('chat.composerPlaceholder')}
+              dir="auto"
+              rows={4}
+              maxLength={20_000}
+              value={draft}
+              onChange={(event) => {
+                setDraft(event.target.value);
+              }}
+            />
+            {/* Two destinations, said plainly. The assistant is the primary
+                action because it answers in seconds and a person does not;
+                "send to a person" stays one click away rather than buried,
+                because a customer who already knows they need a human should
+                not have to be refused by a machine first. */}
+            <div className={screens.row}>
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={sending !== 'none' || draft.trim() === ''}
+              >
+                {sending === 'assistant' ? t('chat.asking') : t('chat.askAssistant')}
+              </Button>
+              <Button
+                disabled={sending !== 'none' || draft.trim() === ''}
+                onClick={() => {
+                  void send('person');
+                }}
+              >
+                {sending === 'message' ? t('chat.sending') : t('chat.sendToPerson')}
+              </Button>
+            </div>
+            {sending === 'assistant' ? (
+              <p role="status" className={screens.muted}>
+                {t('chat.askingHint')}
+              </p>
+            ) : null}
+          </form>
+        </Card>
+      )}
 
       <Card title={t('detail.attachments')} headingLevel="h2">
         {files.length === 0 ? (

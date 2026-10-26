@@ -229,6 +229,16 @@
   font-weight: var(--weight-strong);
 }
 
+.textarea {
+  /* Inherits the input's box so the two line up in one form. */
+  composes: input;
+  /* Vertical only: a textarea a reader can drag wider than its container
+     breaks the page layout, and nobody needs it narrower. */
+  resize: vertical;
+  min-height: 6rem;
+  line-height: 1.6;
+}
+
 /* ── Rating scale ────────────────────────────────────────────────────────── */
 
 .scale {

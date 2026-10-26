@@ -7,6 +7,7 @@ import { expectNoViolations } from '../test/axe.js';
 import { ThemeProvider } from '../theme.js';
 import { History, toKey, toneFor } from './History.js';
 import { PreferencesScreen } from './Preferences.js';
+import { NewTicket } from './NewTicket.js';
 import { TicketDetail } from './TicketDetail.js';
 import { historyQuery } from '../api/client.js';
 
@@ -55,6 +56,14 @@ function stubApi() {
  * sort of accidental `[object Object]` the linter's `no-base-to-string` rule
  * exists to catch. Narrowing once here keeps the tests readable and the rule on.
  */
+/** Every URL the client called, narrowed once. */
+function requestedUrls(): string[] {
+  return vi
+    .mocked(globalThis.fetch)
+    .mock.calls.map(([url]) => url)
+    .filter((url): url is string => typeof url === 'string');
+}
+
 function sentBody(suffix: string): unknown {
   const call = vi
     .mocked(globalThis.fetch)
@@ -610,5 +619,146 @@ describe('how a failure is shown', () => {
     mount(<History onOpen={() => undefined} />);
     expect(await screen.findByRole('status')).toBeDefined();
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
+/* ── Reaching the assistant ─────────────────────────────────────────────── */
+
+/**
+ * The gap this screen closes.
+ *
+ * Everything behind the assistant worked — retrieval, citation enforcement,
+ * the confidence floor, the escalation path — and a customer had no way to say
+ * a single word to it. The client could only read. Step 15 built the engine
+ * and no pedal, and no test noticed, because every test drove the parts
+ * directly.
+ */
+describe('asking for help', () => {
+  beforeEach(() => {
+    routes['/api/customer/tickets/507f1f77bcf86cd799439011/ask'] = {
+      message: {
+        id: 'm5',
+        author: 'assistant',
+        body: 'Turn it off for a minute.',
+        inputForm: 'english',
+        internal: false,
+        confidence: 0.71,
+        citations: [{ version: 2, title: 'Restarting a printer' }],
+        createdAt: '2026-10-24T09:10:00Z',
+      },
+      outcome: { kind: 'answered', confidence: 0.71 },
+      ticketStatus: 'awaiting_customer',
+    };
+    routes['/api/customer/tickets'] = { ticket, message: { id: 'm1' } };
+  });
+
+  it('creates the ticket and puts the question to the assistant', async () => {
+    const user = userEvent.setup();
+    const onOpened = vi.fn();
+    mount(<NewTicket onOpened={onOpened} onCancel={() => undefined} />);
+
+    await user.type(screen.getByLabelText(/Short summary/), 'Printer stopped');
+    await user.type(screen.getByLabelText(/What is happening/), 'el printer 3am ya3mel error');
+    await user.click(screen.getByRole('button', { name: 'Ask the assistant' }));
+
+    await waitFor(() => {
+      expect(onOpened).toHaveBeenCalledWith('507f1f77bcf86cd799439011');
+    });
+
+    const calls = requestedUrls();
+    expect(calls).toContain('/api/customer/tickets');
+    expect(calls.some((url) => url.endsWith('/ask'))).toBe(true);
+  });
+
+  /* Detected from what they typed rather than asked. The script settles
+     Arabizi; which register Arabic script is, does not belong to this screen. */
+  it('records the written form it can actually tell from the text', async () => {
+    const user = userEvent.setup();
+    mount(<NewTicket onOpened={() => undefined} onCancel={() => undefined} />);
+
+    await user.type(screen.getByLabelText(/Short summary/), 'Printer');
+    await user.type(screen.getByLabelText(/What is happening/), 'el printer 3am ya3mel error');
+    await user.click(screen.getByRole('button', { name: 'Ask the assistant' }));
+
+    await waitFor(() => {
+      expect(sentBody('/api/customer/tickets')).toMatchObject({ inputForm: 'arabizi' });
+    });
+  });
+
+  it('will not submit an empty problem', () => {
+    mount(<NewTicket onOpened={() => undefined} onCancel={() => undefined} />);
+    expect(screen.getByRole('button', { name: 'Ask the assistant' })).toHaveProperty(
+      'disabled',
+      true,
+    );
+  });
+
+  it('has no axe violations, in both languages', async () => {
+    for (const locale of ['en-LB', 'ar-LB'] as Locale[]) {
+      const { container, unmount } = mount(
+        <NewTicket onOpened={() => undefined} onCancel={() => undefined} />,
+        locale,
+      );
+      await expectNoViolations(container);
+      unmount();
+    }
+  });
+});
+
+describe('the composer on a ticket', () => {
+  /* The shared fixture is a *closed* ticket, which is exactly where the
+     composer must not appear — so an open one is set up here. */
+  function open_() {
+    routes['/api/customer/tickets/507f1f77bcf86cd799439011'] = {
+      ...(routes['/api/customer/tickets/507f1f77bcf86cd799439011'] as object),
+      ticket: { ...ticket, status: 'awaiting_customer' },
+      confirm: { ok: true },
+    };
+  }
+
+  /* A ticket a customer can read but not reply to is a receipt, not a support
+     thread. */
+  it('offers both the assistant and a person', async () => {
+    open_();
+    mount(<TicketDetail id={ticket.id} onBack={() => undefined} />);
+    expect(await screen.findByRole('button', { name: 'Ask the assistant' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Send to a person' })).toBeDefined();
+  });
+
+  it('sends what was typed to the assistant', async () => {
+    routes['/api/customer/tickets/507f1f77bcf86cd799439011/ask'] = {
+      message: {
+        id: 'm6',
+        author: 'assistant',
+        body: 'Try the paper tray.',
+        inputForm: 'english',
+        internal: false,
+        confidence: 0.6,
+        citations: [],
+        createdAt: '2026-10-24T09:20:00Z',
+      },
+      outcome: { kind: 'answered', confidence: 0.6 },
+      ticketStatus: 'awaiting_customer',
+    };
+    open_();
+    const user = userEvent.setup();
+    mount(<TicketDetail id={ticket.id} onBack={() => undefined} />);
+
+    await user.type(await screen.findByLabelText(/Your reply/), 'still jammed');
+    await user.click(screen.getByRole('button', { name: 'Ask the assistant' }));
+
+    await waitFor(() => {
+      expect(sentBody('/ask')).toEqual({ question: 'still jammed' });
+    });
+  });
+
+  /* `closed` is terminal in the state machine on purpose, so a message posted
+     there would be refused by the server and the button would be a lie. The
+     reopen form is the correct path and is already on the page. */
+  it('is hidden on a closed ticket, where reopening is the way back', async () => {
+    mount(<TicketDetail id={ticket.id} onBack={() => undefined} />);
+    await screen.findByText('el printer 3am ya3mel error');
+    expect(screen.queryByRole('button', { name: 'Ask the assistant' })).toBeNull();
+    expect(screen.getByLabelText(/What has happened since/)).toBeDefined();
   });
 });

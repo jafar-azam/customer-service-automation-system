@@ -73,6 +73,12 @@ Do not re-litigate these; they are recorded with reasoning in step 01 §9.
   Prometheus registry throws on the second test that builds an app.
 - **Validate every input with zod** — body, query, params and socket events —
   rejecting unknown fields.
+- **Type-check with `npm run typecheck` (`tsc -b`), never `tsc -p apps/client`.**
+  `apps/client/tsconfig.json` is a references-only stub with `"files": []`, so
+  `tsc -p apps/client --noEmit` checks nothing and exits 0 — a guaranteed green
+  that hides real errors. The real config is `tsconfig.app.json`. The server's
+  own config does have an `include`, which makes the client's silence easy to
+  miss by analogy.
 - **Comments explain *why*.** No placeholder comments, no dead code, no TODOs
   left in a finished step.
 - **Check the current version of a dependency before adding it.** Do not install

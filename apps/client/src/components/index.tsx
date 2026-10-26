@@ -1,4 +1,10 @@
-import type { ButtonHTMLAttributes, InputHTMLAttributes, JSX, ReactNode } from 'react';
+import type {
+  ButtonHTMLAttributes,
+  InputHTMLAttributes,
+  JSX,
+  ReactNode,
+  TextareaHTMLAttributes,
+} from 'react';
 import { useId } from 'react';
 import { styles } from './styles.js';
 import { AlertIcon, CheckIcon, InfoIcon } from './icons.js';
@@ -120,6 +126,76 @@ export function Field({
       )}
       {/* `role="alert"` so a validation failure is announced when it appears,
           rather than only being found by someone who goes looking for it. */}
+      {error === undefined ? null : (
+        <span className={styles.error} id={errorId} role="alert">
+          {error}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/* ── Text area ───────────────────────────────────────────────────────────── */
+
+export interface TextAreaProps extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'id'> {
+  readonly label: string;
+  readonly hint?: string;
+  readonly error?: string;
+  readonly optionalLabel?: string;
+}
+
+/**
+ * The same contract as `Field`, for text that runs to more than a line.
+ *
+ * A separate component rather than a `multiline` flag on `Field`, because the
+ * element is genuinely different — `<textarea>` takes its value as a child in
+ * plain HTML, has `rows` rather than `size`, and its props type is not
+ * `InputHTMLAttributes`. A flag would mean a union of two prop types that
+ * accepts combinations neither element supports.
+ *
+ * Everything else is deliberately identical: the label is always visible and
+ * always associated, `aria-describedby` carries hint and error together, and
+ * `aria-invalid` is what reaches assistive technology, since a red border does
+ * not.
+ */
+export function TextArea({
+  label,
+  hint,
+  error,
+  optionalLabel,
+  required,
+  rows = 4,
+  ...props
+}: TextAreaProps): JSX.Element {
+  const id = useId();
+  const hintId = `${id}-hint`;
+  const errorId = `${id}-error`;
+  const describedBy = [hint === undefined ? null : hintId, error === undefined ? null : errorId]
+    .filter((value) => value !== null)
+    .join(' ');
+
+  return (
+    <div className={styles.field}>
+      <label className={styles.label} htmlFor={id}>
+        {label}
+        {!required && optionalLabel !== undefined ? (
+          <span className={styles.optional}> ({optionalLabel})</span>
+        ) : null}
+      </label>
+      <textarea
+        id={id}
+        className={styles.textarea}
+        rows={rows}
+        required={required}
+        aria-invalid={error === undefined ? undefined : true}
+        aria-describedby={describedBy === '' ? undefined : describedBy}
+        {...props}
+      />
+      {hint === undefined ? null : (
+        <span className={styles.hint} id={hintId}>
+          {hint}
+        </span>
+      )}
       {error === undefined ? null : (
         <span className={styles.error} id={errorId} role="alert">
           {error}

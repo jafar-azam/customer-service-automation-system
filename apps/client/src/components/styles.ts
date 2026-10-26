@@ -13,6 +13,7 @@ export const CLASS_NAMES = [
   'label',
   'optional',
   'input',
+  'textarea',
   'hint',
   'error',
   'identifier',

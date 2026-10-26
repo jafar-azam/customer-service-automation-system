@@ -246,6 +246,42 @@ export const reopenTicket = (id: string, body: string) =>
   });
 
 /**
+ * Opens a ticket.
+ *
+ * `inputForm` is what the customer was writing in, recorded once at creation —
+ * step 11 keeps it as how the ticket was *opened*, which is what Phase 8
+ * reports accuracy against. It is not re-detected per message.
+ */
+export const createTicket = (body: { subject: string; body: string; inputForm: string }) =>
+  api<{ ticket: TicketSummary; message: Message }>('/api/customer/tickets', {
+    method: 'POST',
+    body,
+  });
+
+/** A message to whoever is handling the ticket. */
+export const postMessage = (id: string, body: string, inputForm: string) =>
+  api<{ message: Message; ticket: TicketSummary }>(`/api/customer/tickets/${id}/messages`, {
+    method: 'POST',
+    body: { body, inputForm },
+  });
+
+/**
+ * Puts a question to the assistant.
+ *
+ * Its own call rather than something `postMessage` does, matching the server:
+ * a generation takes seconds on a local model, so posting stays fast and the
+ * answer is a separate round trip. `outcome` says what happened — an
+ * escalation is a result, not a failure, and the screen has to be able to say
+ * which one it got.
+ */
+export const askAssistant = (id: string, question: string) =>
+  api<{
+    message: Message;
+    outcome: { kind: 'answered' | 'escalated'; reason?: string; confidence: number };
+    ticketStatus: string;
+  }>(`/api/customer/tickets/${id}/ask`, { method: 'POST', body: { question } });
+
+/**
  * "Did that solve it?"
  *
  * `solved` is sent explicitly rather than inferred from whether a score was

@@ -55,6 +55,18 @@ export const arLB = {
     opened: 'تاريخ الفتح',
     updated: 'آخر تحديث',
   },
+  newTicket: {
+    title: 'طلب مساعدة',
+    cardTitle: 'المشكلة',
+    subject: 'ملخّص قصير',
+    body: 'ما الذي يحصل؟',
+    bodyHint: 'الكتابة متاحة بالعربية أو بالأحرف اللاتينية أو بالإنكليزية.',
+    submit: 'اسأل المساعد',
+    asking: 'جارٍ السؤال…',
+    askingHint: 'يجري البحث في قاعدة المعرفة. يستغرق ذلك بضع ثوانٍ.',
+    cancel: 'العودة إلى الطلبات',
+    start: 'طلب مساعدة',
+  },
   detail: {
     back: 'العودة إلى الطلبات',
     conversation: 'المحادثة',
@@ -151,7 +163,13 @@ export const arLB = {
     version: '(النسخة {{version}})',
     confidence: 'الثقة',
     composerLabel: 'نص الرد',
+    continue: 'متابعة المحادثة',
     composerPlaceholder: 'نص الرد…',
+    askAssistant: 'اسأل المساعد',
+    asking: 'جارٍ السؤال…',
+    askingHint: 'يجري البحث في قاعدة المعرفة. يستغرق ذلك بضع ثوانٍ.',
+    sendToPerson: 'إرسال إلى موظف',
+    sending: 'جارٍ الإرسال…',
     /* Impersonal and correctly agreeing: `المشكلة` is feminine, so
        `هل حلّ هذا المشكلة` — which this interface shipped once — is wrong. */
     solved: 'هل حُلّت المشكلة؟',
