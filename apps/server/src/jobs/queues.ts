@@ -30,6 +30,7 @@ import type { Logger } from 'pino';
 export const QUEUE_NAMES = {
   sla: 'csas-sla',
   retention: 'csas-retention',
+  embed: 'csas-embed',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];

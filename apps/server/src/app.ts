@@ -13,6 +13,10 @@ import { ticketRouter } from './routes/tickets.js';
 import { attachmentRouter } from './routes/attachments.js';
 import { preferencesRouter } from './routes/preferences.js';
 import { devInboxRouter } from './routes/dev-inbox.js';
+import { assistantRouter } from './routes/assistant.js';
+import { createEmbeddings, type EmbeddingsProvider } from './services/providers/embeddings.js';
+import { createLlm, type LlmProvider } from './services/providers/llm.js';
+import { KnowledgeIndex } from './services/rag/retrieve.js';
 import { createStorage, type StorageProvider } from './services/providers/storage.js';
 import { createScanner, type FileScanner } from './services/providers/virus-scan.js';
 import { NullTicketEvents, type TicketEvents } from './realtime/events.js';
@@ -34,12 +38,17 @@ export interface AppOptions {
   /** Injected so a test can use in-memory storage and a scanner it controls. */
   readonly storage?: StorageProvider;
   readonly scanner?: FileScanner;
+  /** The assistant's collaborators, injected for the same reason. */
+  readonly knowledgeIndex?: KnowledgeIndex;
+  readonly embeddings?: EmbeddingsProvider;
+  readonly llm?: LlmProvider;
 }
 
 export interface App {
   readonly express: Express;
   readonly metrics: Metrics;
   readonly health: HealthRegistry;
+  readonly knowledgeIndex: KnowledgeIndex;
 }
 
 /**
@@ -65,6 +74,17 @@ export function createApp({
   scanner = createScanner(env.FILE_SCAN_PROVIDER, {
     host: env.CLAMAV_HOST,
     port: env.CLAMAV_PORT,
+    logger,
+  }),
+  knowledgeIndex = new KnowledgeIndex(logger),
+  embeddings = createEmbeddings(env.EMBEDDINGS_PROVIDER, {
+    baseUrl: env.ML_SERVICE_URL,
+    token: env.ML_SERVICE_TOKEN,
+    logger,
+  }),
+  llm = createLlm(env.LLM_PROVIDER, {
+    baseUrl: env.OLLAMA_BASE_URL,
+    model: env.OLLAMA_MODEL,
     logger,
   }),
 }: AppOptions): App {
@@ -109,6 +129,10 @@ export function createApp({
   app.use('/api/tickets', ticketRouter({ env, logger, events, audience: 'staff' }));
 
   app.use('/api/customer/preferences', preferencesRouter({ env, logger }));
+  app.use(
+    '/api/customer/tickets',
+    assistantRouter({ env, logger, index: knowledgeIndex, embeddings, llm, events }),
+  );
 
   /* Not mounted at all unless DEMO_MODE is on, so the path 404s rather than
      403s when it is off — an endpoint that answers "forbidden" tells you it
@@ -126,5 +150,7 @@ export function createApp({
   app.use(notFoundHandler);
   app.use(createErrorHandler({ logger, metrics, errorTracker }));
 
-  return { express: app, metrics, health };
+  /* The index is returned so step 17's approval flow can invalidate it, and
+     so a test can assert on what was loaded. */
+  return { express: app, metrics, health, knowledgeIndex };
 }

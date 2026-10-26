@@ -5,6 +5,9 @@ import { getRedis } from '../db/redis.js';
 import { MockMessagingProvider, type MessagingProvider } from '../services/providers/messaging.js';
 import type { StorageProvider } from '../services/providers/storage.js';
 import { sweepRetention, sweepSla } from './sla-sweep.js';
+import { backfillEmbeddings } from '../services/rag/embed-entries.js';
+import { createEmbeddings } from '../services/providers/embeddings.js';
+import type { KnowledgeIndex } from '../services/rag/retrieve.js';
 import { createQueue, createWorker, QUEUE_NAMES, scheduleRepeating } from './queues.js';
 
 /**
@@ -18,6 +21,11 @@ import { createQueue, createWorker, QUEUE_NAMES, scheduleRepeating } from './que
 
 const SLA_INTERVAL_MS = 60_000;
 const RETENTION_INTERVAL_MS = 60 * 60_000;
+/* Often enough that an entry approved now is answerable within minutes,
+   rarely enough that an idle knowledge base costs almost nothing — the query
+   finds nothing and returns. Step 17 invalidates the index on approval, which
+   is what makes the wait the backfill interval rather than a cache lifetime. */
+const EMBED_INTERVAL_MS = 5 * 60_000;
 
 export interface Jobs {
   readonly queues: readonly Queue[];
@@ -30,6 +38,8 @@ export interface JobsOptions {
   readonly logger: Logger;
   readonly storage: StorageProvider;
   readonly messaging?: MessagingProvider;
+  /** Invalidated after a backfill, so new vectors are visible immediately. */
+  readonly knowledgeIndex?: KnowledgeIndex;
 }
 
 export async function startJobs({
@@ -37,6 +47,7 @@ export async function startJobs({
   logger,
   storage,
   messaging = new MockMessagingProvider(logger, { revealCodes: env.DEMO_MODE }),
+  knowledgeIndex,
 }: JobsOptions): Promise<Jobs> {
   /* BullMQ needs its own connection, and needs it configured differently.
      It issues blocking commands — `BZPOPMIN` and friends — so sharing the
@@ -50,9 +61,17 @@ export async function startJobs({
 
   const slaQueue = createQueue(QUEUE_NAMES.sla, runtime);
   const retentionQueue = createQueue(QUEUE_NAMES.retention, runtime);
+  const embedQueue = createQueue(QUEUE_NAMES.embed, runtime);
 
   await scheduleRepeating(slaQueue, 'sweep', SLA_INTERVAL_MS);
   await scheduleRepeating(retentionQueue, 'sweep', RETENTION_INTERVAL_MS);
+  await scheduleRepeating(embedQueue, 'backfill', EMBED_INTERVAL_MS);
+
+  const embeddings = createEmbeddings(env.EMBEDDINGS_PROVIDER, {
+    baseUrl: env.ML_SERVICE_URL,
+    token: env.ML_SERVICE_TOKEN,
+    logger,
+  });
 
   const workers = [
     createWorker(
@@ -69,6 +88,16 @@ export async function startJobs({
       },
       runtime,
     ),
+    createWorker(
+      QUEUE_NAMES.embed,
+      async () => {
+        const result = await backfillEmbeddings(embeddings, logger);
+        /* Only when something changed: invalidating on every tick would
+           reload the whole index every five minutes for nothing. */
+        if (result.embedded > 0) knowledgeIndex?.invalidate();
+      },
+      runtime,
+    ),
   ];
 
   logger.info(
@@ -77,14 +106,14 @@ export async function startJobs({
   );
 
   return {
-    queues: [slaQueue, retentionQueue],
+    queues: [slaQueue, retentionQueue, embedQueue],
     workers,
     async close() {
       /* Workers first: closing a queue underneath a running worker leaves it
          reconnecting to something that is gone, and the shutdown then waits
          for a timeout instead of ending. */
       await Promise.all(workers.map((worker) => worker.close()));
-      await Promise.all([slaQueue.close(), retentionQueue.close()]);
+      await Promise.all([slaQueue.close(), retentionQueue.close(), embedQueue.close()]);
       connection.disconnect();
     },
   };

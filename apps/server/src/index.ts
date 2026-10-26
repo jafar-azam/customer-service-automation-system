@@ -69,25 +69,35 @@ function main(): void {
 
   connectToRedis({ url: env.REDIS_URL, logger });
 
-  /* Started after Redis is connecting, and not awaited: the SLA sweep must
-     not hold the server's listen() behind it. A failure here is logged and
-     leaves the API serving — timers stopping is bad, the whole service being
-     down is worse. */
+  /* Started only once MongoDB is connected, and still not awaited.
+     Every job queries the database first thing, so starting them in parallel
+     with the connection means the first tick of each fails — which it did,
+     logging two alarming stack traces on every boot before BullMQ's retry
+     quietly fixed it a few seconds later. The retry is the right safety net
+     and the wrong thing to rely on for an ordering we control. */
   let jobs: Awaited<ReturnType<typeof startJobs>> | undefined;
-  void startJobs({ env, logger, storage: createStorage(env.STORAGE_ROOT) })
-    .then((started) => {
-      jobs = started;
-    })
-    .catch((error: unknown) => {
-      logger.error({ err: error }, 'background jobs failed to start');
-    });
 
   /* The connection is started but not awaited: the server must come up and
      answer /api/health even when the database is down, so that readiness can
      report *why* rather than the process simply failing to boot. */
-  void connectToDatabase({ uri: env.MONGODB_URI, logger }).catch((error: unknown) => {
-    logger.error({ err: error }, 'initial mongodb connection failed; readiness will report it');
-  });
+  void connectToDatabase({ uri: env.MONGODB_URI, logger })
+    .then(() =>
+      startJobs({
+        env,
+        logger,
+        storage: createStorage(env.STORAGE_ROOT),
+        knowledgeIndex: app.knowledgeIndex,
+      }),
+    )
+    .then((started) => {
+      jobs = started;
+    })
+    .catch((error: unknown) => {
+      logger.error(
+        { err: error },
+        'mongodb connection or job startup failed; readiness will report it',
+      );
+    });
 
   const server = httpServer.listen(env.PORT, () => {
     logger.info(

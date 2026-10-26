@@ -21,7 +21,7 @@ L2 · A0x = OWASP Top 10 2021 · API0x = OWASP API Security Top 10 2023 ·
 LLM0x = OWASP Top 10 for LLM Applications 2025.
 
 Counts as of step 08, re-derived from the table by `npm run audit:checklist`
-rather than written by hand: **83 done, 35 planned, 1 accepted**. (The numbered
+rather than written by hand: **87 done, 31 planned, 1 accepted**. (The numbered
 rows count one `accepted`; the five further acceptances have no requirement id
 because they are infrastructure decisions, and are listed at the end.)
 
@@ -112,12 +112,12 @@ because they are infrastructure decisions, and are listed at the end.)
 
 | # | Requirement | Std | Control | Code | Test | Status |
 | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
-| 8.1 | User input and KB content kept out of the system prompt | LLM01 | Structured messages; untrusted content delimited | `services/assistant` | injection corpus produces no instruction-following | step 15 |
-| 8.2 | The model has no tools and no database access | LLM06 | Provider interface returns text only | `providers/llm` | interface has no tool surface | step 15 |
-| 8.3 | Answers cite knowledge-base entry ids that were actually retrieved | LLM05, LLM09 | Citations validated against the retrieval set | `services/assistant` | fabricated citation rejected | step 15 |
-| 8.4 | Below the confidence threshold, escalate | LLM09 | Calibrated score, risk–coverage threshold | `services/assistant` | low-confidence case escalates | step 15, 24 |
-| 8.5 | Output length limits and moderation | LLM05 | Bounded generation | `services/assistant` | over-long output truncated | step 15 |
-| 8.6 | Retrieval restricted to approved entries | LLM08 | Filter applied before similarity | `repositories/kb` | draft entry never retrieved | step 17 |
+| 8.1 | User input and KB content kept out of the system prompt | LLM01 | Both are data in delimited blocks, and the delimiter is stripped from the data so a document cannot close its own block. Control and bidirectional characters removed — invisible in any review tool, so the natural place to hide an instruction | `services/rag/prompt.ts` | a poisoned KB entry and a poisoned question each fail to leak the prompt or change the answer | **done** |
+| 8.2 | The model has no tools and no database access | LLM06 | `LlmProvider` takes a prompt and returns text. There is no tool surface to call and no connection to pass — a successful injection can make it say something wrong, never do anything | `services/providers/llm.ts` | the interface has one method returning a string | **done** |
+| 8.3 | Answers cite knowledge-base entry ids that were actually retrieved | LLM05, LLM09 | Every citation is checked against the labels actually supplied; real database ids never enter the prompt, so an injected instruction cannot name a document it was not shown. An uncited answer escalates even if it reads well | `services/rag/answer.ts` | a fabricated `[KB-9]` escalates and the text is never shown to the customer | **done** |
+| 8.4 | Below the confidence threshold, escalate | LLM09 | Two guards: an absolute floor, and a **margin** requiring the top document to beat the runner-up — because a flat ranking is noise whatever its absolute score. Both are uncalibrated; step 24 fits them against the labelled set | `services/rag/answer.ts` | a flat ranking escalates as `ambiguous` despite scoring above the floor | step 24 |
+| 8.5 | Output length limits | LLM05 | The question is capped at 2,000 characters and generation at 512 tokens. Moderation of the output is not implemented — the answer is constrained to quoting approved content, which is a stronger control than filtering free generation | `routes/assistant.ts`, `providers/llm.ts` | an over-long question is refused with 400 | step 18 |
+| 8.6 | Retrieval restricted to approved entries | LLM08 | `status: 'approved'` is in the index query itself, so no caller can forget it — a draft is someone's unfinished thought and an archived entry was withdrawn for a reason | `services/rag/retrieve.ts` | a draft entry matching the question exactly still escalates | **done** |
 | 8.7 | Per-customer AI usage quotas | LLM10 | Counters with a refusal path | `services/assistant` | quota exceeded → refused, not degraded silently | step 18 |
 | 8.8 | Timeouts, retries with jitter, circuit breaker, degraded mode | LLM10 | Resilience layer | `providers/llm` | provider down → keyword fallback, message never lost | step 18 |
 | 8.9 | Prompt-injection corpus kept and run in CI | LLM01 | Fixture corpus, both languages | `tests/security` | corpus asserted clean | step 34 |

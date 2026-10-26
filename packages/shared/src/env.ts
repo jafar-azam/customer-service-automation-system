@@ -135,6 +135,15 @@ export const envSchema = z.object({
    * is terminal so an auto-close job and a customer cannot fight over one
    * document indefinitely.
    */
+  /**
+   * Whether the assistant answers at all.
+   *
+   * Off is a legitimate configuration, not a failure mode: a company that has
+   * not yet approved any knowledge-base content wants every ticket going
+   * straight to a person rather than an assistant that can only escalate.
+   */
+  ASSISTANT_ENABLED: z.stringbool().default(true),
+
   TICKET_REOPEN_WINDOW_DAYS: z.coerce.number().int().min(0).max(365).default(14),
 
   /* Where the seed importers read from. Both are git-ignored paths: the
