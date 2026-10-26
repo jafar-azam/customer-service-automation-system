@@ -3,13 +3,13 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { normalizePhone } from '@csas/shared';
 import { createApp } from '../app.js';
 import { PhoneCipher } from '../crypto/phone.js';
-import { Contract, Customer, Notification, StaffUser, Ticket } from '../db/models/index.js';
+import { Contract, Customer, StaffUser, Ticket } from '../db/models/index.js';
 import { clearTestDatabase, startTestDatabase, stopTestDatabase } from '../db/test-db.js';
 import { clearTestRedis, startTestRedis, stopTestRedis } from '../db/test-redis.js';
 import { CSRF_COOKIE, REFRESH_COOKIE } from '../http/cookies.js';
 import { createMetrics } from '../observability/metrics.js';
 import { hashPassword } from '../services/auth/password.js';
-import { silentLogger, testEnv } from '../test-support.js';
+import { otpCodeFor, silentLogger, testEnv } from '../test-support.js';
 
 const env = testEnv({
   DEMO_MODE: 'true',
@@ -84,8 +84,8 @@ function cookie(response: request.Response, name: string): string {
 
 async function signInCustomer(phone: string): Promise<Session> {
   await request(app).post('/api/auth/customer/request-code').send({ phone });
-  const message = await Notification.findOne({ kind: 'otp' }).sort({ createdAt: -1 }).lean();
-  const code = String(/\b(\d{6})\b/.exec(String(message?.preview))?.[1]);
+  /* By recipient, not "the newest one". See `otpCodeFor`. */
+  const code = await otpCodeFor(normalizePhone(phone));
   const response = await request(app).post('/api/auth/customer/verify').send({ phone, code });
   void cookie(response, CSRF_COOKIE);
   void cookie(response, REFRESH_COOKIE);

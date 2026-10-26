@@ -6,14 +6,14 @@ import { io as connect, type Socket as ClientSocket } from 'socket.io-client';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../app.js';
 import { PhoneCipher } from '../crypto/phone.js';
-import { Contract, Customer, Notification, StaffUser } from '../db/models/index.js';
+import { Contract, Customer, StaffUser } from '../db/models/index.js';
 import { clearTestDatabase, startTestDatabase, stopTestDatabase } from '../db/test-db.js';
 import { clearTestRedis, startTestRedis, stopTestRedis } from '../db/test-redis.js';
 import { CSRF_COOKIE, CSRF_HEADER, REFRESH_COOKIE } from '../http/cookies.js';
 import { createMetrics } from '../observability/metrics.js';
 import { hashPassword } from '../services/auth/password.js';
 import { revokeFamily } from '../services/auth/tokens.js';
-import { silentLogger, testEnv } from '../test-support.js';
+import { otpCodeFor, silentLogger, testEnv } from '../test-support.js';
 import { DeferredTicketEvents, STAFF_ROOM, ticketRoom } from './events.js';
 import { createRealtime } from './socket.js';
 
@@ -121,8 +121,8 @@ function cookie(response: request.Response, name: string): string {
 
 async function signInCustomer(phone: string): Promise<Session> {
   await request(app.express).post('/api/auth/customer/request-code').send({ phone });
-  const message = await Notification.findOne({ kind: 'otp' }).sort({ createdAt: -1 }).lean();
-  const code = String(/\b(\d{6})\b/.exec(String(message?.preview))?.[1]);
+  /* By recipient, not "the newest one". See `otpCodeFor`. */
+  const code = await otpCodeFor(normalizePhone(phone));
   const response = await request(app.express)
     .post('/api/auth/customer/verify')
     .send({ phone, code });

@@ -71,3 +71,39 @@ export function capturingLogger(level = 'trace'): CapturedLogger {
   );
   return { logger, lines };
 }
+
+/**
+ * The one-time code that was sent to a particular number.
+ *
+ * Filtered **by recipient**, which every copy of this helper used to skip — the
+ * eight test files that needed it each read "the newest OTP notification" and
+ * assumed it was theirs. `createdAt` is millisecond-resolution, so two sign-ins
+ * landing in the same millisecond made the sort a coin flip, and the second
+ * customer could read the first customer's code, fail verification, and run the
+ * rest of the test unauthenticated.
+ *
+ * That surfaced as two of the cross-customer authorization tests failing once
+ * every few full-suite runs — the worst possible place for a flake, because the
+ * honest reading of a red security test is that isolation broke, and the
+ * trained response to a flaky one is to run it again.
+ *
+ * `_id` breaks the remaining tie: ObjectIds are monotonic within a process, so
+ * the newest row wins even when the timestamps are identical.
+ */
+export async function otpCodeFor(e164: string): Promise<string> {
+  /* Imported here rather than taken as a parameter: typing a Mongoose model
+     structurally means restating an overloaded signature, and this module is
+     test-only, so the direct dependency costs nothing. */
+  const { Notification } = await import('./db/models/index.js');
+
+  const masked = `${e164.slice(0, 4)}***${e164.slice(-3)}`;
+  const row = await Notification.findOne({ kind: 'otp', recipientMasked: masked })
+    .sort({ createdAt: -1, _id: -1 })
+    .lean();
+
+  const code = /\b(\d{6})\b/.exec(row?.preview ?? '')?.[1];
+  if (code === undefined) {
+    throw new Error(`no one-time code was sent to ${masked}`);
+  }
+  return code;
+}

@@ -213,10 +213,39 @@ transcript a customer may still be holding.
 
 ---
 
+## 7a. A flaky security test, and why it mattered
+
+Two tests — `still scopes every filter to the caller` and `cannot widen its own
+scope through the query string` — failed roughly once in six full-suite runs.
+Both are cross-customer authorization tests.
+
+The cause was in the fixtures, not the product. Eight test files each contained
+a copy of:
+
+```ts
+const message = await Notification.findOne({ kind: 'otp' }).sort({ createdAt: -1 }).lean();
+```
+
+"The newest one-time code", with no check of **whose** it was. `createdAt` is
+millisecond-resolution, so two sign-ins landing in the same millisecond made the
+sort a coin flip: the second customer could verify with the first customer's
+code, fail, and run the rest of the test unauthenticated. The assertion then saw
+a 401 body instead of a result.
+
+It is worth writing up because of where it landed. The honest reading of a red
+isolation test is that isolation broke; the trained response to a flaky one is to
+run it again. A fixture that makes a security test unreliable quietly converts
+the most important tests in the suite into noise.
+
+Replaced by one `otpCodeFor(e164)` in `test-support.ts` that filters by
+recipient and breaks the remaining tie on `_id`, with a regression test that
+writes two codes at an identical timestamp and asserts each number gets its own.
+Six consecutive full-suite runs clean.
+
 ## 8. How to verify
 
 ```bash
-npx vitest run                 # 59 files, 1037 tests
+npx vitest run                 # 60 files, 1038 tests
 node scripts/smoke/smoke.mjs   # 44 checks through nginx
 npm run audit:checklist        # 135 requirements — 103 done, 31 planned, 1 accepted
 ```
@@ -272,3 +301,4 @@ as the `csv-parse` already in use).
 - [x] Approval embeds and invalidates the index
 - [x] Citations shown, audience-scoped, title frozen, `<bdi>` isolated
 - [x] `CHECKLIST.md` section 20, ten rows, all **done**
+- [x] The flaky OTP fixture replaced by one recipient-filtered helper

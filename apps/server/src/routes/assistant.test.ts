@@ -17,7 +17,7 @@ import { clearTestRedis, startTestRedis, stopTestRedis } from '../db/test-redis.
 import { createMetrics } from '../observability/metrics.js';
 import { MockEmbeddings } from '../services/providers/embeddings.js';
 import { MockLlm, type LlmProvider, type LlmResponse } from '../services/providers/llm.js';
-import { silentLogger, testEnv } from '../test-support.js';
+import { otpCodeFor, silentLogger, testEnv } from '../test-support.js';
 
 const env = testEnv({ DEMO_MODE: 'true', DEMO_ADMIN_TOTP_SECRET: 'A'.repeat(32) });
 const embeddings = new MockEmbeddings();
@@ -131,8 +131,8 @@ async function createCustomer(phone: string) {
 
 async function signIn(phone: string): Promise<string> {
   await request(app.express).post('/api/auth/customer/request-code').send({ phone });
-  const message = await Notification.findOne({ kind: 'otp' }).sort({ createdAt: -1 }).lean();
-  const code = String(/\b(\d{6})\b/.exec(String(message?.preview))?.[1]);
+  /* By recipient, not "the newest one". See `otpCodeFor`. */
+  const code = await otpCodeFor(normalizePhone(phone));
   const response = await request(app.express)
     .post('/api/auth/customer/verify')
     .send({ phone, code });
