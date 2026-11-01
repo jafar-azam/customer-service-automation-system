@@ -91,7 +91,7 @@ jobs:
       # dies at "Set up job" before a single step runs. Checking the releases
       # API is not the same check: `v10.3.2` exists as a release while `v10`
       # does not exist as a tag.
-      - uses: astral-sh/setup-uv@v10.3.2
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
           cache-dependency-glob: apps/ml/uv.lock
@@ -139,7 +139,7 @@ jobs:
       # dies at "Set up job" before a single step runs. Checking the releases
       # API is not the same check: `v10.3.2` exists as a release while `v10`
       # does not exist as a tag.
-      - uses: astral-sh/setup-uv@v10.3.2
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
           cache-dependency-glob: apps/ml/uv.lock
